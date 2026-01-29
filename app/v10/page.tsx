@@ -396,7 +396,7 @@ const GodIsFrequency = () => {
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   
   const physics = useRef({
       bass: new Spring(0),
@@ -431,7 +431,7 @@ const GodIsFrequency = () => {
 
         audioCtxRef.current = ctx;
         analyserRef.current = analyser;
-        dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
         setIsListening(true);
       }
     } catch (e) {
@@ -577,9 +577,9 @@ const GodIsFrequency = () => {
 
         let targetBass = 0, targetVoice = 0, targetVol = 0;
         
-        if (isListening && analyserRef.current) {
-            analyserRef.current!.getByteFrequencyData(dataArrayRef.current!);
-            const data = dataArrayRef.current!;
+        if (isListening && analyserRef.current && dataArrayRef.current) {
+            analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+            const data = dataArrayRef.current;
             const len = data.length;
             
             const voiceStart = Math.floor(300 / 21.5);
