@@ -6,6 +6,7 @@ import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 import * as THREE from 'three';
 import clsx from 'clsx';
 import Link from 'next/link';
+import { useMicAudio } from '@/hooks/useMicAudio';
 
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
@@ -186,7 +187,7 @@ const smoothstep = (edge0: number, edge1: number, x: number): number => {
     return t * t * (3 - 2 * t);
 };
 
-const CinematicIntro = ({ onScrollRequest }: { onScrollRequest: () => void }) => {
+const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: () => void, getAudioData: () => { bass: number, mid: number, high: number } }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -320,8 +321,17 @@ const CinematicIntro = ({ onScrollRequest }: { onScrollRequest: () => void }) =>
             const scroll = window.scrollY / window.innerHeight; // Normalized scroll 0-1 approx
 
             // Update Uniforms
+            const audio = getAudioData();
+            // Boost values for visual impact
+            const bass = 0.2 + (audio.bass * 0.8);
+            const voice = 0.2 + (audio.mid * 0.8);
+
             particleMaterial.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
+
+            // Audio Uniforms
+            fieldMat.uniforms.uBass.value = THREE.MathUtils.lerp(fieldMat.uniforms.uBass.value, bass, 0.1);
+            fieldMat.uniforms.uVoice.value = THREE.MathUtils.lerp(fieldMat.uniforms.uVoice.value, voice, 0.1);
 
             // Phase Logic
             // 0 -> 1: Auto morph after 3 seconds
@@ -508,6 +518,7 @@ const PurchaseWidget = () => {
 export default function V11Page() {
     const { scrollY } = useScroll();
     const [scrolled, setScrolled] = useState(false);
+    const { startAudio, getAudioData } = useMicAudio();
 
     // Background fade transition (for the white content section)
     const bgOpacity = useTransform(scrollY, [600, 1000], [0, 1]);
@@ -529,7 +540,9 @@ export default function V11Page() {
             <FontStyles />
 
             {/* 3D Cinematic Background (Handles intro + field) */}
-            <CinematicIntro onScrollRequest={scrollToProcess} />
+            <div onClick={startAudio} className="absolute inset-0 z-0 cursor-pointer" title="Click to enable audio reaction">
+                <CinematicIntro onScrollRequest={scrollToProcess} getAudioData={getAudioData} />
+            </div>
 
             {/* Forest Background Layer (Fades in) */}
             <motion.div
