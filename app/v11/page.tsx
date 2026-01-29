@@ -25,54 +25,85 @@ const FontStyles = () => (
   `}</style>
 );
 
-// --- V10 Engine: God Is Frequency (Integrated into V11) ---
+// --- Cinematic Intro Engine ---
 
-const MODES = {
-  genesis: {
-    id: 'genesis',
-    label: 'Genesis',
-    hz: '432 Hz',
-    color1: new THREE.Vector3(0.0, 0.02, 0.15), 
-    color2: new THREE.Vector3(0.1, 0.3, 0.8),
-    bg: 0x000103, 
-    shapeFn: 0 
-  },
-  revelation: {
-    id: 'revelation',
-    label: 'Revelation',
-    hz: '528 Hz',
-    color1: new THREE.Vector3(0.0, 0.7, 0.6), 
-    color2: new THREE.Vector3(0.8, 0.9, 1.0),
-    bg: 0x00080a,
-    shapeFn: 1 
-  },
-  ascension: {
-    id: 'ascension',
-    label: 'Ascension',
-    hz: '963 Hz',
-    color1: new THREE.Vector3(0.5, 0.0, 1.0), 
-    color2: new THREE.Vector3(1.0, 0.6, 0.2), 
-    bg: 0x0a000f,
-    shapeFn: 2 
+// 1. Shaders for the "God Is" -> "Lines" Morph
+const silverParticleVertex = `
+  uniform float uTime;
+  uniform float uMorph; // 0 = Text, 1 = Lines
+  uniform float uScroll;
+  uniform float uParticleSize;
+  
+  attribute vec3 linePosition; // Target position for lines state
+  attribute float randomOffset;
+  
+  varying float vAlpha;
+  varying float vShimmer;
+  
+  void main() {
+    // Morph Logic
+    vec3 currentPos = mix(position, linePosition, smoothstep(0.0, 1.0, uMorph));
+    
+    // Add noise/vibration to lines state
+    if (uMorph > 0.5) {
+        float wave = sin(currentPos.x * 2.0 + uTime * 2.0 + randomOffset * 10.0);
+        currentPos.z += wave * 0.1 * uMorph; // Vibrating depth in line mode
+        currentPos.y += cos(currentPos.x * 5.0 + uTime) * 0.02 * uMorph;
+    }
+
+    // Scroll effect (move up and away)
+    // When uScroll > 0, the whole system moves naturally as part of the page flow
+    // But we might want specific effects:
+    // currentPos.y += uScroll * 5.0; // Handled by container transform usually, but let's keep it local if needed
+
+    vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    
+    // Size attenuation
+    gl_PointSize = uParticleSize * (300.0 / -mvPosition.z);
+    
+    // Shimmer effect calculation
+    vShimmer = sin(uTime * 3.0 + randomOffset * 20.0);
+    
+    // Alpha fade based on lifecycle
+    vAlpha = 1.0; 
   }
-};
+`;
 
-const vertexShader = `
+const silverParticleFragment = `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  
+  varying float vAlpha;
+  varying float vShimmer;
+  
+  void main() {
+    // Circle shape
+    if(length(gl_PointCoord - 0.5) > 0.5) discard;
+    
+    // Aluminum / Silver Shimmer
+    // Base is white/silver, shimmer adds brightness
+    float brightness = 0.8 + 0.4 * vShimmer;
+    vec3 finalColor = uColor * brightness;
+    
+    gl_FragColor = vec4(finalColor, uOpacity * vAlpha);
+  }
+`;
+
+// 2. V10 Blue Field Shaders (Genesis/Revelation) - slightly optimized for background use
+const fieldVertexShader = `
   uniform float uTime;
   uniform float uBass;
   uniform float uVoice;
-  uniform float uVolume;
-  uniform float uScroll;
-  uniform int uShapeFn;
+  uniform float uVolume; // Master volume for visual intensity
+  uniform float uScroll; // Controls the "Horizon" bend
+  uniform int uShapeFn;  // 0:Genesis, 1:Revelation, 2:Ascension
   uniform float uParticleSize;
-  uniform float uComplexity;
-  uniform float uDisplacementStr;
-  uniform float uSpeed;
   
   varying float vDisplacement;
-  varying vec2 vUv;
-  varying float vDist;
+  varying float vDist; // Distance from center for fades
 
+  // Simple Noise
   float hash(vec2 p) { return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x)))); }
   float noise(vec2 x) {
     vec2 i = floor(x);
@@ -86,59 +117,44 @@ const vertexShader = `
   }
 
   void main() {
-    vUv = uv;
-    vec2 pos = uv * 2.0 - 1.0;
+    vec2 pos = uv * 2.0 - 1.0; // Normalised Coordinates -1 to 1
     vDist = length(pos);
+    
     float PI = 3.14159;
     float displacement = 0.0;
-    
-    float t = uTime * uSpeed;
+    float t = uTime * 0.5;
 
     // --- Shape Logic ---
-    if (uShapeFn == 0) { // Genesis
-        float n = (3.0 * uComplexity) + uBass * 1.5;
-        float m = (3.0 * uComplexity) + uVoice * 4.0; 
+    if (uShapeFn == 0) { // Genesis (Smooth Waves)
+        float n = 3.0 + uBass * 0.5;
+        float m = 3.0 + uVoice * 2.0; 
         float wave = cos(n * pos.x * PI) * cos(m * pos.y * PI) - cos(m * pos.x * PI) * cos(n * pos.y * PI);
-        displacement = wave * (uVolume * 3.0 + uVoice * 4.0);
+        displacement = wave * (uVolume * 2.0);
     } 
-    else if (uShapeFn == 1) { // Revelation
-        vec2 grid = abs(fract(pos * (3.0 * uComplexity + uBass)) - 0.5);
-        displacement = (1.0 - max(grid.x, grid.y)) * (uVolume * 4.0);
-        displacement *= cos(t * 2.0 + length(pos) * 5.0);
-        displacement += uVoice * 3.0 * noise(pos * 10.0);
+    else if (uShapeFn == 1) { // Revelation (Geometric/Crystalline)
+        vec2 grid = abs(fract(pos * 4.0) - 0.5);
+        displacement = (1.0 - max(grid.x, grid.y)) * (uVolume * 3.0);
+        displacement *= cos(t * 1.5 + length(pos) * 4.0);
     } 
-    else { // Ascension
-        float n = noise(pos * (4.0 * uComplexity) + t * 0.5);
-        displacement = n * uVolume * 6.0;
-        displacement += sin(length(pos) * 8.0 - t) * uVoice * 4.0; 
-    }
-
-    displacement *= uDisplacementStr;
 
     vec3 newPos = position;
-    newPos.z += displacement;
-    
-    // Scroll Transition
-    float horizonFactor = pow(uScroll, 2.5); 
-    float bandNoise = noise(pos.xy * 8.0 + t) * 0.2 * (1.0 - horizonFactor);
-    newPos.y *= mix(0.12, 1.0, horizonFactor); 
-    newPos.y += bandNoise; 
-    newPos.z *= mix(0.6, 1.0, uScroll); 
+    newPos.z += displacement * 1.5;
 
+    // Scroll Transition: The "Field" is revealed behind the lines
+    // We want it to curve up from the deep
+    
     vDisplacement = abs(displacement);
 
     vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
-    
-    gl_PointSize = (uParticleSize + uVoice * 2.0) * (8.0 / -mvPosition.z);
+    gl_PointSize = (uParticleSize + vDisplacement * 2.0) * (5.0 / -mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
-const fragmentShader = `
+const fieldFragmentShader = `
   uniform vec3 uColor1;
   uniform vec3 uColor2;
-  uniform float uScroll;
-  uniform float uVoice;
+  uniform float uOpacity; 
   
   varying float vDisplacement;
   varying float vDist;
@@ -147,106 +163,207 @@ const fragmentShader = `
     if(length(gl_PointCoord - 0.5) > 0.5) discard;
 
     vec3 color = mix(uColor1, uColor2, smoothstep(0.0, 2.0, vDisplacement));
-    float alpha = 1.0 - smoothstep(0.5, 1.0, vDist);
     
-    // Fade based on scroll (v11 behavior)
-    float scrollFade = 1.0 - smoothstep(0.0, 0.8, uScroll);
-    alpha *= scrollFade;
+    // Circular vignette fade
+    float alpha = (1.0 - smoothstep(0.4, 1.0, vDist)) * uOpacity;
     
-    float glow = 1.0 + uVoice * 1.5; 
-    float lineGlow = mix(1.8, 1.0, uScroll);
-    
-    gl_FragColor = vec4(color * glow * lineGlow, alpha * 0.8);
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
-const CymaticsHero = () => {
+
+// --- CONSTANTS ---
+const INTRO_PHASES = {
+    GOD_IS: 0,
+    MORPHING: 1,
+    LINES: 2,
+    REVEAL: 3
+};
+
+// Smoothstep helper (same as GLSL smoothstep)
+const smoothstep = (edge0: number, edge1: number, x: number): number => {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+};
+
+const CinematicIntro = ({ onScrollRequest }: { onScrollRequest: () => void }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [mousePos, setMousePos] = useState({ x: 999, y: 999 });
-
-    // Engine Params (Hardcoded for V11 Hero)
-    const params = {
-        bassGain: 0.6,
-        voiceGain: 1.2,
-        volGain: 0.5,
-        particleSize: 0.7,
-        complexity: 1.0,
-        speed: 0.8,
-        displacementStr: 1.2
-    };
-
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            const x = (e.clientX / window.innerWidth) * 2 - 1;
-            const y = -(e.clientY / window.innerHeight) * 2 + 1;
-            setMousePos({ x, y });
-        };
-        window.addEventListener('mousemove', handleMouseMove);
-        return () => window.removeEventListener('mousemove', handleMouseMove);
-    }, []);
 
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
+
+        // Scene Setup
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 0, 5.0); // V10 Position
+        camera.position.set(0, 0, 8); // Start further back
 
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
 
-        const geometry = new THREE.PlaneGeometry(8, 8, 350, 350); // V10 High Res
-        const material = new THREE.ShaderMaterial({
+        // --- 1. "God Is" Particles Setup ---
+        // We generate positions from a canvas
+        const generateTextPositions = (text: string) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return new Float32Array(0);
+            canvas.width = 1024;
+            canvas.height = 512;
+
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 80px "Cinzel", serif'; // Use loaded font or fallback
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const positions = [];
+
+            for (let y = 0; y < canvas.height; y += 4) { // stride for density
+                for (let x = 0; x < canvas.width; x += 4) {
+                    const index = (y * canvas.width + x) * 4;
+                    if (data[index] > 50) { // Threshold
+                        const pX = (x / canvas.width - 0.5) * 16.0; // Scale to world
+                        const pY = -(y / canvas.height - 0.5) * 8.0;
+                        positions.push(pX, pY, 0);
+                    }
+                }
+            }
+            return new Float32Array(positions);
+        };
+
+        const textPositions = generateTextPositions("God is");
+        const count = textPositions.length / 3;
+
+        // Generate "Line" Target Positions
+        const linePositions = new Float32Array(count * 3);
+        const randomOffsets = new Float32Array(count);
+        for (let i = 0; i < count; i++) {
+            // Distribute into parallel lines (horizontal planes)
+            const lineIndex = i % 20; // 20 lines
+            const x = (Math.random() - 0.5) * 20.0; // Wide spread
+            const z = (Math.random() - 0.5) * 5.0; // Depth
+            const y = -2.0 + (lineIndex * 0.2); // Stacked vertically, slightly below center
+
+            linePositions[i * 3] = x;
+            linePositions[i * 3 + 1] = y;
+            linePositions[i * 3 + 2] = z;
+
+            randomOffsets[i] = Math.random();
+        }
+
+        const particleGeometry = new THREE.BufferGeometry();
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(textPositions, 3));
+        particleGeometry.setAttribute('linePosition', new THREE.BufferAttribute(linePositions, 3));
+        particleGeometry.setAttribute('randomOffset', new THREE.BufferAttribute(randomOffsets, 1));
+
+        const particleMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
-                uBass: { value: 0 },
-                uVoice: { value: 0 },
-                uVolume: { value: 0 },
+                uMorph: { value: 0 }, // 0 = text, 1 = lines
                 uScroll: { value: 0 },
-                uShapeFn: { value: MODES.genesis.shapeFn },
-                uParticleSize: { value: params.particleSize },
-                uComplexity: { value: params.complexity },
-                uSpeed: { value: params.speed },
-                uDisplacementStr: { value: params.displacementStr },
-                uColor1: { value: MODES.genesis.color1 },
-                uColor2: { value: MODES.genesis.color2 },
+                uParticleSize: { value: 0.04 }, // Reduced for finer particles
+                uColor: { value: new THREE.Color(0xdddddd) }, // Silver/Aluminum
+                uOpacity: { value: 1.0 },
             },
-            vertexShader,
-            fragmentShader,
+            vertexShader: silverParticleVertex,
+            fragmentShader: silverParticleFragment,
             transparent: true,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
 
-        const plate = new THREE.Points(geometry, material);
-        plate.rotation.x = -0.2; 
-        plate.position.y = 1.0; 
-        scene.add(plate);
+        const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particleSystem);
 
-        let animationId: number;
-        const animate = (time: number) => {
-            const t = time * 0.001;
-            material.uniforms.uTime.value = t;
 
-            // Simulate Breathing/Voice
-            material.uniforms.uVoice.value = Math.sin(t * 1.5) * 0.1 + 0.1;
-            material.uniforms.uVolume.value = Math.cos(t) * 0.1 + 0.2;
+        // --- 2. Blue Field Setup (Background) ---
+        const fieldGeo = new THREE.PlaneGeometry(16, 16, 200, 200);
+        const fieldMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uBass: { value: 0.2 },
+                uVoice: { value: 0.2 },
+                uVolume: { value: 0.5 }, // Start dimmed
+                uScroll: { value: 0 },
+                uShapeFn: { value: 0 }, // Genesis
+                uParticleSize: { value: 2.5 },
+                uColor1: { value: new THREE.Vector3(0.0, 0.05, 0.2) }, // Dark Blue
+                uColor2: { value: new THREE.Vector3(0.1, 0.4, 0.9) },  // Bright Blue
+                uOpacity: { value: 0.0 } // Start invisible
+            },
+            vertexShader: fieldVertexShader,
+            fragmentShader: fieldFragmentShader,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+        });
+        const fieldMesh = new THREE.Points(fieldGeo, fieldMat);
+        fieldMesh.rotation.x = -0.3;
+        fieldMesh.position.z = -5; // Behind everything
+        scene.add(fieldMesh);
 
-            // Sync with Scroll
-            const normScroll = Math.min(window.scrollY / window.innerHeight, 1.0);
-            material.uniforms.uScroll.value = normScroll;
 
-            // Parallax Camera
-            camera.rotation.x = normScroll * -0.4;
-            camera.position.z = 5.0 + normScroll * 2.5; 
+        // --- Animation Logic ---
+        let startTime = Date.now();
+        let frameId: number;
+
+        const loop = () => {
+            const now = Date.now();
+            const elapsed = (now - startTime) * 0.001;
+            const scroll = window.scrollY / window.innerHeight; // Normalized scroll 0-1 approx
+
+            // Update Uniforms
+            particleMaterial.uniforms.uTime.value = elapsed;
+            fieldMat.uniforms.uTime.value = elapsed;
+
+            // Phase Logic
+            // 0 -> 1: Auto morph after 3 seconds
+            let morphProgress = 0;
+            let fieldOpacity = 0;
+
+            if (elapsed > 2.5) {
+                // Start morphing to lines
+                morphProgress = Math.min((elapsed - 2.5) * 0.5, 1.0); // 2s morph
+
+                // Camera drift
+                camera.position.z = 8.0 - morphProgress * 2.0; // Move in slightly
+            }
+
+            // Scroll Logic (Overrides/Adds to auto animation)
+            if (scroll > 0.1) {
+                morphProgress = 1.0; // Force to lines if scrolling
+
+                // Field Reveal
+                // Reveal starts at scroll 0.2, full by 0.5
+                fieldOpacity = smoothstep(0.1, 0.5, scroll);
+
+                // Move lines away/fade as field appears?
+                // Or lines BECOME the bed. Let's keep them as a shimmering grid.
+
+                // Tilt camera for 'Horizon' effect
+                camera.rotation.x = -scroll * 0.2;
+            }
+
+            particleMaterial.uniforms.uMorph.value = morphProgress;
+            fieldMat.uniforms.uOpacity.value = fieldOpacity;
+
+            // Sync with actual scroll for parallax
+            fieldMat.uniforms.uScroll.value = scroll;
 
             renderer.render(scene, camera);
-            animationId = requestAnimationFrame(animate);
+            frameId = requestAnimationFrame(loop);
         };
-        animate(0);
 
+        loop();
+
+        // Resize
         const handleResize = () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -256,18 +373,16 @@ const CymaticsHero = () => {
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            cancelAnimationFrame(animationId);
+            cancelAnimationFrame(frameId);
             renderer.dispose();
             if (container) container.innerHTML = '';
-        }
-    }, [mousePos]); 
+        };
+    }, [onScrollRequest]);
 
-    return (
-        <div ref={containerRef} className="fixed inset-0 z-0 pointer-events-none" />
-    );
+    return <div ref={containerRef} className="fixed inset-0 z-0 bg-black" />;
 };
 
-// --- V1 Components (Updated) ---
+// --- V1 Helper Components ---
 
 const ProductBottle = () => {
     return (
@@ -314,21 +429,21 @@ const ProductBottle = () => {
             {/* Shadow Base */}
             <div className="absolute bottom-[10%] w-64 h-8 bg-black/20 blur-[20px] rounded-[100%]" />
         </div>
-    )
+    );
 }
 
 const Accordion = ({ title, children }: { title: string, children: React.ReactNode }) => {
     const [isOpen, setIsOpen] = useState(false);
     return (
-        <div className="border-b border-deep-forest/10 py-4">
+        <div className="border-b border-white/10 py-4">
             <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full text-left group">
-                <span className="font-sans font-medium text-sm text-deep-forest/80 group-hover:text-deep-forest transition-colors">{title}</span>
-                <ChevronDown className={`w-4 h-4 text-deep-forest/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <span className="font-sans font-medium text-sm text-white/80 group-hover:text-white transition-colors">{title}</span>
+                <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             <AnimatePresence>
                 {isOpen && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                        <div className="pt-4 pb-2 text-deep-forest/60 text-sm leading-relaxed">{children}</div>
+                        <div className="pt-4 pb-2 text-white/60 text-sm leading-relaxed">{children}</div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -340,51 +455,51 @@ const PurchaseWidget = () => {
     const [subType, setSubType] = useState<'sub' | 'once'>('sub');
     return (
         <div className="mt-8 space-y-6">
-            <div className="bg-white border border-soft-clay rounded-lg p-1 shadow-sm">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-1 shadow-sm backdrop-blur-md">
                 <button
                     onClick={() => setSubType('sub')}
                     className={clsx(
                         "w-full flex items-center justify-between px-4 py-3 rounded-md transition-all duration-300",
-                        subType === 'sub' ? "bg-clinical-white shadow-sm border border-soft-clay" : "hover:bg-gray-50"
+                        subType === 'sub' ? "bg-white/10 shadow-sm border border-white/10" : "hover:bg-white/5"
                     )}
                 >
                     <div className="flex items-center gap-3">
-                        <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType === 'sub' ? "border-deep-forest bg-deep-forest" : "border-gray-300")}>
-                            {subType === 'sub' && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                        <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType === 'sub' ? "border-mycelium-gold bg-mycelium-gold" : "border-white/30")}>
+                            {subType === 'sub' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
                         </div>
                         <div className="text-left">
-                            <span className="block font-medium text-sm text-deep-forest">Subscribe & Save 15%</span>
-                            <span className="block text-xs text-deep-forest/50">Delivered monthly • Cancel anytime</span>
+                            <span className="block font-medium text-sm text-white">Subscribe & Save 15%</span>
+                            <span className="block text-xs text-white/50">Delivered monthly • Cancel anytime</span>
                         </div>
                     </div>
-                    <span className="font-serif font-medium text-deep-forest">$98.00</span>
+                    <span className="font-serif font-medium text-white">$98.00</span>
                 </button>
                 <button
                     onClick={() => setSubType('once')}
                     className={clsx(
                         "w-full flex items-center justify-between px-4 py-3 rounded-md transition-all duration-300 mt-1",
-                        subType === 'once' ? "bg-clinical-white shadow-sm border border-soft-clay" : "hover:bg-gray-50"
+                        subType === 'once' ? "bg-white/10 shadow-sm border border-white/10" : "hover:bg-white/5"
                     )}
                 >
                     <div className="flex items-center gap-3">
-                        <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType === 'once' ? "border-deep-forest bg-deep-forest" : "border-gray-300")}>
-                            {subType === 'once' && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                        <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType === 'once' ? "border-mycelium-gold bg-mycelium-gold" : "border-white/30")}>
+                            {subType === 'once' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
                         </div>
                         <div className="text-left">
-                            <span className="block font-medium text-sm text-deep-forest">One-time Purchase</span>
+                            <span className="block font-medium text-sm text-white">One-time Purchase</span>
                         </div>
                     </div>
-                    <span className="font-serif font-medium text-deep-forest">$115.00</span>
+                    <span className="font-serif font-medium text-white">$115.00</span>
                 </button>
             </div>
-            <button className="w-full bg-deep-forest text-white py-4 px-6 rounded-full font-medium hover:bg-deep-forest/90 transition-all flex items-center justify-between group shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+            <button className="w-full bg-white text-black py-4 px-6 rounded-full font-medium hover:bg-white/90 transition-all flex items-center justify-between group shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
                 <span>Add to Cart</span>
                 <span className="flex items-center gap-2">
                     {subType === 'sub' ? '$98.00' : '$115.00'}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </span>
             </button>
-            <p className="text-center text-xs text-deep-forest/40">Free shipping on orders over $100. 30-day money back guarantee.</p>
+            <p className="text-center text-xs text-white/40">Free shipping on orders over $100. 30-day money back guarantee.</p>
         </div>
     )
 }
@@ -394,98 +509,121 @@ export default function V11Page() {
     const { scrollY } = useScroll();
     const [scrolled, setScrolled] = useState(false);
 
-    // Parallax Transforms
-    const heroOpacity = useTransform(scrollY, [0, 500], [1, 0]);
-    const heroY = useTransform(scrollY, [0, 500], [0, 100]);
-    const logoScale = useTransform(scrollY, [0, 500], [1, 0.8]);
-    const bgOpacity = useTransform(scrollY, [400, 800], [0, 1]);
+    // Background fade transition (for the white content section)
+    const bgOpacity = useTransform(scrollY, [600, 1000], [0, 1]);
 
     useEffect(() => {
-        const handle = () => setScrolled(window.scrollY > 50);
-        window.addEventListener('scroll', handle);
-        return () => window.removeEventListener('scroll', handle);
+        const handleScroll = () => {
+            setScrolled(window.scrollY > 50);
+        };
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    const scrollToProcess = () => {
+        window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+    };
+
     return (
-        <div className="min-h-[200vh] font-sans selection:bg-mycelium-gold/30">
+        <div className="min-h-screen bg-black text-deep-forest font-sans selection:bg-frequency-blue/30 overflow-x-hidden">
             <FontStyles />
 
-            {/* 1. Background Layer: Transitions from Black (Hero) to Clinical White (Content) */}
-            <div className="fixed inset-0 z-[-1] bg-black" />
+            {/* 3D Cinematic Background (Handles intro + field) */}
+            <CinematicIntro onScrollRequest={scrollToProcess} />
+
+            {/* Forest Background Layer (Fades in) */}
             <motion.div
                 style={{ opacity: bgOpacity }}
-                className="fixed inset-0 z-[-1] bg-clinical-white pointer-events-none"
+                className="fixed inset-0 z-[-1]"
+            >
+                <div className="absolute inset-0 bg-black/60 z-10" /> {/* Dark overlay for "deep dark nature" */}
+                <img
+                    src="/forest-bg.jpg"
+                    alt="Forest Background"
+                    className="w-full h-full object-cover opacity-80"
+                />
+            </motion.div>
+
+            {/* White Background Layer for Content (Fades in) - REDUCED OPACITY TO SHOW FOREST */}
+            <motion.div
+                style={{ opacity: bgOpacity }}
+                className="fixed inset-0 z-[-1] bg-gradient-to-b from-black via-black/80 to-deep-forest/90 pointer-events-none mix-blend-multiply"
             />
 
-            {/* 2. Cymatics Engine (Fixed) */}
-            <CymaticsHero />
 
-            {/* 3. Navigation (Adaptive) */}
-            <header className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 transition-all duration-500 ${scrolled ? 'bg-white/80 backdrop-blur-md border-b border-black/5 py-4' : ''}`}>
-                <div className="flex items-center gap-4">
-                    <Link href="/" className="group">
-                        <Menu className={`w-5 h-5 transition-colors ${scrolled ? 'text-deep-forest' : 'text-white'}`} />
-                    </Link>
-                </div>
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                    <motion.div style={{ scale: logoScale }}>
-                        <h1 className={`font-cinzel text-xl tracking-[0.2em] font-semibold transition-colors duration-500 ${scrolled ? 'text-deep-forest' : 'text-white'}`}>
-                            FREQUENCY
-                        </h1>
-                    </motion.div>
-                </div>
-                <div className="flex items-center gap-4">
-                    <ShoppingBag className={`w-5 h-5 transition-colors ${scrolled ? 'text-deep-forest' : 'text-white'}`} />
-                </div>
-            </header>
+            {/* Navigation (Floating) */}
+            <nav className={clsx(
+                "fixed top-0 left-0 w-full z-50 transition-all duration-500 flex justify-between items-center px-6 md:px-12 py-6",
+                scrolled ? "bg-black/50 backdrop-blur-md border-b border-white/10 py-4 text-white" : "bg-transparent text-white"
+            )}>
+                <Link href="/" className="hover:text-mycelium-gold transition-colors duration-300">
+                    <Menu className="w-6 h-6" />
+                </Link>
 
-            {/* 4. Hero Section (Scrollable) */}
-            <section className="h-screen w-full flex items-center justify-center relative pointer-events-none">
-                <motion.div style={{ opacity: heroOpacity, y: heroY }} className="text-center z-10 px-4">
-                    <span className="block font-cinzel text-xs md:text-sm tracking-[0.4em] text-white/50 mb-6 uppercase">
-                        Grown with Intention • Powered by Frequencies
-                    </span>
-                    <h1 className="font-playfair italic text-6xl md:text-9xl text-white mb-8 metal-text">
-                        Resonance
-                    </h1>
-                    <div className="w-px h-24 bg-gradient-to-b from-white/0 via-white/50 to-white/0 mx-auto" />
-                </motion.div>
+                {/* Center Title (Only visible after intro scroll) */}
+                <div className={clsx("absolute left-1/2 -translate-x-1/2 transition-opacity duration-700", scrolled ? "opacity-100" : "opacity-0")}>
+                    <span className="font-cinzel text-lg tracking-[0.2em] font-bold">FREQUENCY</span>
+                </div>
 
-                {/* Scroll Indicator */}
+                <div className="flex gap-8 items-center">
+                    <ShoppingBag className="w-5 h-5 hover:text-mycelium-gold transition-colors" />
+                </div>
+            </nav>
+
+            {/* Section 1: Cinematic Intro Spacer & Title Reveal */}
+            <section className="relative h-[150vh] w-full pointer-events-none">
+                {/* Sticky Container for the Titles */}
+                <div className="sticky top-0 h-screen w-full flex items-center justify-center">
+                    {/* The Frequency Title (Reveals on scroll) */}
+                    <motion.h1
+                        initial={{ opacity: 0, scale: 0.9, y: 50 }}
+                        whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                        viewport={{ margin: "-20% 0px -20% 0px" }}
+                        transition={{ duration: 1.5, ease: "easeOut" }}
+                        className="text-[8vw] md:text-[10vw] font-cinzel font-bold text-white tracking-widest mix-blend-overlay z-10 text-center leading-none"
+                    >
+                        FREQUENCY
+                    </motion.h1>
+                </div>
+
+                {/* Scroll Indicator (Fades out) */}
                 <motion.div
-                    style={{ opacity: heroOpacity }}
-                    className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 3, duration: 1 }}
+                    className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-20"
                 >
-                    <span className="text-[10px] uppercase tracking-widest text-white/30 font-cinzel">Discover The Process</span>
+                    <span className="text-[10px] uppercase tracking-widest text-white/30 font-cinzel">Begin the Ritual</span>
                     <ChevronDown className="w-4 h-4 text-white/30 animate-bounce" />
                 </motion.div>
             </section>
 
-            {/* 4.5. The Process (Transition Section) */}
+            {/* Section 2: The Sonic Infusion (Process) */}
             <motion.section
                 style={{ opacity: bgOpacity }}
-                className="relative z-10 w-full min-h-[50vh] flex items-center justify-center py-24 bg-clinical-white/5 backdrop-blur-sm"
+                className="relative z-10 w-full min-h-[80vh] flex items-center justify-center py-24 bg-black/20 backdrop-blur-sm"
             >
                 <div className="max-w-4xl mx-auto px-6 text-center">
-                    <h2 className="font-cinzel text-2xl md:text-3xl text-deep-forest mb-8 tracking-wide">The Sonic Infusion</h2>
-                    <p className="font-playfair text-xl md:text-3xl text-deep-forest/80 leading-relaxed italic mb-12">
+                    <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-8 tracking-wide">The Sonic Infusion</h2>
+                    <p className="font-playfair text-xl md:text-3xl text-white/80 leading-relaxed italic mb-12">
                         &quot;The Mushrooms don’t Work for Us. We Work for Them.&quot;
                     </p>
+
                     <div className="grid md:grid-cols-3 gap-8 text-left">
                         <div className="space-y-3">
                             <Waves className="w-8 h-8 text-mycelium-gold" />
-                            <h3 className="font-serif text-lg text-deep-forest">Grown as Medicine</h3>
-                            <p className="text-sm text-deep-forest/60 leading-relaxed">Fungi are sentient beings. We treat them with reverence, growing them in clean, high-vibration spaces.</p>
+                            <h3 className="font-serif text-lg text-white">Grown as Medicine</h3>
+                            <p className="text-sm text-white/60 leading-relaxed">Fungi are sentient beings. We treat them with reverence, growing them in clean, high-vibration spaces.</p>
                         </div>
                         <div className="space-y-3">
                             <Disc className="w-8 h-8 text-mycelium-gold" />
-                            <h3 className="font-serif text-lg text-deep-forest">432Hz Infusion</h3>
-                            <p className="text-sm text-deep-forest/60 leading-relaxed">Every stage of cultivation is immersed in Solfeggio tones, chants, and nature sounds to harmonize the biological structure.</p>
+                            <h3 className="font-serif text-lg text-white">432Hz Infusion</h3>
+                            <p className="text-sm text-white/60 leading-relaxed">Every stage of cultivation is immersed in Solfeggio tones, chants, and nature sounds to harmonize the biological structure.</p>
                         </div>
                         <div className="space-y-3">
                             <Sprout className="w-8 h-8 text-mycelium-gold" />
-                            <h3 className="font-serif text-lg text-deep-forest">Nature & Nurture</h3>
-                            <p className="text-sm text-deep-forest/60 leading-relaxed">&quot;Same genetics, different frequency = different outcome.&quot; We refine unique strains through our in-house cultivation.</p>
+                            <h3 className="font-serif text-lg text-white">Nature & Nurture</h3>
+                            <p className="text-sm text-white/60 leading-relaxed">&quot;Same genetics, different frequency = different outcome.&quot; We refine unique strains through our in-house cultivation.</p>
                         </div>
                     </div>
                 </div>
@@ -510,23 +648,23 @@ export default function V11Page() {
                             <div className="flex text-mycelium-gold">
                                 {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
                             </div>
-                            <span className="text-deep-forest/60 border-b border-deep-forest/20 pb-0.5">142 Reviews</span>
+                            <span className="text-white/60 border-b border-white/20 pb-0.5">142 Reviews</span>
                         </div>
 
-                        <h2 className="text-5xl md:text-7xl font-serif mb-6 leading-[1.1] text-deep-forest">
+                        <h2 className="text-5xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">
                             Calm Dose<span className="text-mycelium-gold">.</span>
                         </h2>
 
-                        <p className="text-lg text-deep-forest/70 leading-relaxed mb-6 font-light">
+                        <p className="text-lg text-white/70 leading-relaxed mb-6 font-light">
                             A wellness supplement formulated with functional mushroom fruiting bodies to support everyday calm and balance.
                         </p>
-                        <p className="text-sm text-deep-forest/50 leading-relaxed mb-10 font-mono">
+                        <p className="text-sm text-white/50 leading-relaxed mb-10 font-mono">
                             Grown in a 432Hz sound chamber. This is not just a supplement—it is biological resonance.
                         </p>
 
                         <div className="grid grid-cols-2 gap-4 mb-10">
                             {["Anxiety Relief", "Mental Clarity", "Sleep Support", "100% Organic"].map((item, i) => (
-                                <div key={i} className="flex items-center gap-2 text-sm text-deep-forest/80">
+                                <div key={i} className="flex items-center gap-2 text-sm text-white/80">
                                     <div className="w-5 h-5 rounded-full bg-[#E6F5EC] flex items-center justify-center text-[#009E60]">
                                         <Check className="w-3 h-3" />
                                     </div>
@@ -535,7 +673,7 @@ export default function V11Page() {
                             ))}
                         </div>
 
-                        <div className="border-t border-deep-forest/10 mb-8">
+                        <div className="border-t border-white/10 mb-8">
                             <Accordion title="Ingredients">
                                 <ul className="list-disc pl-4 space-y-1">
                                     <li><strong>Active:</strong> Lion’s Mane (fruiting body), Reishi (fruiting body), Cordyceps (fruiting body)</li>
