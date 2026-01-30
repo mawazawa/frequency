@@ -68,6 +68,8 @@ export const useMicAudio = () => {
 
         const third = Math.floor(bufferLength / 3);
 
+        if (third === 0) return { bass: 0, mid: 0, high: 0 };
+
         for (let i = 0; i < bufferLength; i++) {
             const val = data[i] / 255.0; // Normalize 0-1
             if (i < third) bassSum += val;

@@ -103,4 +103,45 @@ describe('useMicAudio', () => {
     expect(mockClose).toHaveBeenCalled();
     expect(result.current.isReady).toBe(false);
   });
+
+  it('returns finite numbers from getFrequencyData when bufferLength < 3', async () => {
+    // Simulate an analyser with frequencyBinCount = 1 (fftSize = 2)
+    mockAnalyser.frequencyBinCount = 1;
+    mockAnalyser.getByteFrequencyData = vi.fn((arr: Uint8Array) => {
+      arr[0] = 200;
+    });
+
+    const { result } = renderHook(() => useMicAudio());
+
+    await act(async () => {
+      await result.current.startAudio();
+    });
+
+    const data = result.current.getFrequencyData();
+
+    // Must not produce NaN or Infinity from division by zero
+    expect(Number.isFinite(data.bass)).toBe(true);
+    expect(Number.isFinite(data.mid)).toBe(true);
+    expect(Number.isFinite(data.high)).toBe(true);
+  });
+
+  it('returns finite numbers from getFrequencyData when bufferLength = 2', async () => {
+    mockAnalyser.frequencyBinCount = 2;
+    mockAnalyser.getByteFrequencyData = vi.fn((arr: Uint8Array) => {
+      arr[0] = 128;
+      arr[1] = 255;
+    });
+
+    const { result } = renderHook(() => useMicAudio());
+
+    await act(async () => {
+      await result.current.startAudio();
+    });
+
+    const data = result.current.getFrequencyData();
+
+    expect(Number.isFinite(data.bass)).toBe(true);
+    expect(Number.isFinite(data.mid)).toBe(true);
+    expect(Number.isFinite(data.high)).toBe(true);
+  });
 });
