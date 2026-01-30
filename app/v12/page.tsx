@@ -380,8 +380,8 @@ const GlassButton = ({ onClick, children, className = '', active = false }: {
   <button onClick={onClick}
     className={clsx(
       "relative group overflow-hidden backdrop-blur-xl border transition-all duration-300 rounded-2xl",
-      active ? "bg-white/10 border-white/40 shadow-[0_0_20px_rgba(255,255,255,0.15)]"
-             : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20",
+      active ? "bg-white/10 border-[#D4AF37]/30 shadow-[0_0_20px_rgba(212,175,55,0.12)]"
+             : "bg-white/5 border-white/10 hover:bg-white/8 hover:border-[#D4AF37]/20",
       className
     )}>
     <div className="absolute inset-[1px] rounded-2xl border border-white/20 pointer-events-none opacity-50" />
@@ -423,8 +423,8 @@ const Accordion = ({ title, children }: { title: string; children: React.ReactNo
   return (
     <div className="border-b border-white/10 py-4">
       <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full text-left group">
-        <span className="font-sans font-medium text-sm text-white/80 group-hover:text-white transition-colors">{title}</span>
-        <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <span className={clsx("font-sans font-medium text-sm transition-colors", isOpen ? "text-mycelium-gold" : "text-white/80 group-hover:text-white")}>{title}</span>
+        <ChevronDown className={clsx("w-4 h-4 transition-transform", isOpen ? "rotate-180 text-mycelium-gold" : "text-white/40")} />
       </button>
       <AnimatePresence>
         {isOpen && (
@@ -773,9 +773,10 @@ export default function V12Page() {
   }, []);
 
   const controlPanelOpacity = useTransform(scrollY, [600, 900], [0, 1]);
+  const quizHintOpacity = useTransform(scrollY, [2800, 3200], [1, 0]);
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-white/20 overflow-x-hidden">
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-white/20 overflow-x-hidden" style={{ scrollBehavior: 'smooth' }}>
       <FontStyles />
 
       {/* ── Mic Prompt Overlay ── */}
@@ -789,7 +790,7 @@ export default function V12Page() {
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
           >
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <img src="/images/mushroom-cluster.jpg" alt="" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vh] max-w-none object-cover opacity-[0.18]"
+              <img src="/images/mushroom-cluster.jpg" alt="" decoding="async" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vh] max-w-none object-cover opacity-[0.18]"
                 style={{
                   maskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)',
                   WebkitMaskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)',
@@ -850,6 +851,7 @@ export default function V12Page() {
           <img 
             src="/images/mushroom-cluster.jpg" 
             alt="" 
+            decoding="async"
             className="absolute top-1/2 left-1/2 animate-slow-drift w-[130vw] h-[130vh] max-w-none object-cover opacity-[0.35]"
             style={{
               maskImage: 'radial-gradient(ellipse 60% 55% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0) 70%)',
@@ -870,6 +872,7 @@ export default function V12Page() {
         <img 
           src="/images/mushroom-smoke.jpg" 
           alt="" 
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover animate-ethereal-pulse"
           style={{
             maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 30%, rgba(0,0,0,0.4) 70%, transparent 100%)',
@@ -878,9 +881,9 @@ export default function V12Page() {
         />
 
         {/* Plant-dark side accents */}
-        <img src="/images/plant-dark.jpg" alt="" className="absolute left-0 top-0 h-full w-[25vw] object-cover opacity-[0.04]" 
+        <img src="/images/plant-dark.jpg" alt="" loading="lazy" decoding="async" className="absolute left-0 top-0 h-full w-[25vw] object-cover opacity-[0.04]" 
           style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
-        <img src="/images/plant-dark.jpg" alt="" className="absolute right-0 top-0 h-full w-[25vw] object-cover opacity-[0.04] scale-x-[-1]"
+        <img src="/images/plant-dark.jpg" alt="" loading="lazy" decoding="async" className="absolute right-0 top-0 h-full w-[25vw] object-cover opacity-[0.04] scale-x-[-1]"
           style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
 
         {/* Vignette overlay */}
@@ -983,6 +986,7 @@ export default function V12Page() {
       </section>
 
       {/* ═══ SECTION 2.5: Mushroom Smoke Divider — Ethereal Transition ═══ */}
+      <div className="h-[10vh]" aria-hidden="true" />
       <motion.section 
         initial={{ opacity: 0 }} 
         whileInView={{ opacity: 1 }} 
@@ -994,6 +998,8 @@ export default function V12Page() {
           <img 
             src="/images/mushroom-smoke.jpg" 
             alt="" 
+            loading="lazy"
+            decoding="async"
             className="absolute inset-0 w-full h-full object-cover object-center opacity-50"
           />
           {/* Ethereal center glow */}
@@ -1007,6 +1013,7 @@ export default function V12Page() {
       </motion.section>
 
       {/* ═══ SECTION 3: Find Your Frequency Quiz ═══ */}
+      <div className="h-[12vh]" aria-hidden="true" />
       <section className="relative z-10 w-full min-h-screen flex items-center justify-center py-24">
         <div className="max-w-2xl mx-auto px-6 w-full">
           <AnimatePresence mode="wait">
@@ -1026,6 +1033,8 @@ export default function V12Page() {
                     <img 
                       src="/images/mushroom-cluster.jpg" 
                       alt="" 
+                      loading="lazy"
+                      decoding="async"
                       className="absolute inset-0 w-full h-full object-cover object-center"
                     />
                     <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black via-black/60 to-transparent" />
@@ -1086,7 +1095,7 @@ export default function V12Page() {
                     <button
                       key={i}
                       onClick={() => handleQuizAnswer(i, opt.weight)}
-                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[56px] sm:min-h-0 hover:bg-white/[0.08] hover:border-white/25 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:scale-[1.01]"
+                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[56px] sm:min-h-0 hover:bg-white/[0.06] hover:border-[#D4AF37]/20 transition-all duration-300 hover:shadow-[0_0_20px_rgba(212,175,55,0.08)] hover:scale-[1.01]"
                     >
                       <div className="flex items-center gap-4">
                         <span className="text-2xl sm:text-2xl">{opt.icon}</span>
@@ -1140,6 +1149,7 @@ export default function V12Page() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1.5, duration: 0.8 }}
+                  style={{ opacity: quizHintOpacity }}
                 >
                   <ChevronDown className="w-5 h-5 text-white/25 animate-gentle-bounce mx-auto" />
                   <span className="text-[9px] uppercase tracking-widest text-white/20 font-cinzel mt-2 block">
@@ -1153,6 +1163,7 @@ export default function V12Page() {
       </section>
 
       {/* ═══ SECTION 4: The Sonic Infusion ═══ */}
+      <div className="h-[10vh]" aria-hidden="true" />
       <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-20%" }} transition={{ duration: 1 }}
         className="relative z-10 w-full min-h-[80vh] flex items-center justify-center py-24 bg-black/30 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -1181,6 +1192,7 @@ export default function V12Page() {
       </motion.section>
 
       {/* ═══ SECTION 5: Product ═══ */}
+      <div className="h-[10vh]" aria-hidden="true" />
       <section className="relative z-10 w-full min-h-screen">
         <div className="md:grid md:grid-cols-2 min-h-screen">
           <div className="sticky top-0 h-screen hidden md:flex items-center justify-center">
