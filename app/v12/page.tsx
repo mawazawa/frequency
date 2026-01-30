@@ -31,6 +31,16 @@ const FontStyles = () => (
       50% { height: 16px; opacity: 1; }
     }
     .animate-wave { animation: wave ease-in-out infinite; }
+    @keyframes etherealPulse {
+      0%, 100% { opacity: 0.08; transform: scale(1); }
+      50% { opacity: 0.14; transform: scale(1.02); }
+    }
+    .animate-ethereal-pulse { animation: etherealPulse 8s ease-in-out infinite; }
+    @keyframes slowDrift {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.05); }
+    }
+    .animate-slow-drift { animation: slowDrift 12s ease-in-out infinite; }
   `}</style>
 );
 
@@ -258,6 +268,7 @@ const unifiedFragmentShader = /* glsl */ `
   uniform float uMid;
   uniform float uFadeIn;
   uniform float uAudioActive;
+  uniform float uCenterClearing;
 
   varying float vDisplacement;
   varying float vDist;
@@ -290,6 +301,13 @@ const unifiedFragmentShader = /* glsl */ `
     float fieldAlpha = 1.0;
     float alpha = mix(lineAlpha, fieldAlpha, vMorph) * edgeAlpha;
     alpha *= uFadeIn;
+
+    // ── Center clearing: fade particles near center to reveal mushroom behind ──
+    float centerDist = vDist;
+    float clearingRadius = 0.25 * uCenterClearing;
+    float clearingFade = smoothstep(clearingRadius, clearingRadius + 0.2, centerDist);
+    alpha *= mix(1.0, clearingFade, uCenterClearing);
+
     alpha = clamp(alpha, 0.0, 1.0);
 
     gl_FragColor = vec4(color, alpha);
@@ -473,7 +491,7 @@ export default function V12Page() {
 
   const physicsRef = useRef({
     bass: new Spring(0), mid: new Spring(0), high: new Spring(0), vol: new Spring(0),
-    morph: new Spring(0),
+    morph: new Spring(0), clearing: new Spring(0),
     n: new Spring(MODES.genesis.n), m: new Spring(MODES.genesis.m),
     color1r: new Spring(MODES.genesis.color1[0]), color1g: new Spring(MODES.genesis.color1[1]), color1b: new Spring(MODES.genesis.color1[2]),
     color2r: new Spring(MODES.genesis.color2[0]), color2g: new Spring(MODES.genesis.color2[1]), color2b: new Spring(MODES.genesis.color2[2]),
@@ -490,12 +508,13 @@ export default function V12Page() {
     if (!container) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
+    scene.background = null;
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
     camera.position.set(0, 0, 7);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", alpha: true });
+    renderer.setClearColor(0x000000, 0);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
@@ -518,6 +537,7 @@ export default function V12Page() {
         uShapeFn:     { value: 0 },
         uColor1:      { value: new THREE.Vector3(...MODES.genesis.color1) },
         uColor2:      { value: new THREE.Vector3(...MODES.genesis.color2) },
+        uCenterClearing: { value: 0 },
       },
       vertexShader: unifiedVertexShader,
       fragmentShader: unifiedFragmentShader,
@@ -606,6 +626,10 @@ export default function V12Page() {
       const morphTarget = smoothstep(0.3, 0.7, scroll);
       const morph = p.morph.update(morphTarget, 0.12, 0.82);
 
+      // ── Center clearing: visible during hero (scroll 0-0.5), fades as field takes over ──
+      const clearingTarget = 1.0 - smoothstep(0.0, 0.6, scroll);
+      const clearing = p.clearing.update(clearingTarget, 0.08, 0.88);
+
       // ── Smooth mode transitions via springs ──
       const sn  = p.n.update(mode.n, 0.08, 0.85);
       const sm  = p.m.update(mode.m, 0.08, 0.85);
@@ -638,6 +662,7 @@ export default function V12Page() {
         fu.uShapeFn.value = mode.shapeFn;
         fu.uColor1.value.set(c1r, c1g, c1b);
         fu.uColor2.value.set(c2r, c2g, c2b);
+        fu.uCenterClearing.value = clearing;
       }
 
       // ── Update Ether ──
@@ -648,10 +673,7 @@ export default function V12Page() {
         s.etherMaterial.uniforms.uColor.value.set(c2r, c2g, c2b);
       }
 
-      // ── Background color: black during lines, mode bg as field reveals ──
-      if (s.scene && s.scene.background instanceof THREE.Color) {
-        s.scene.background.setRGB(br * morph, bgv * morph, bb * morph);
-      }
+      // ── Background is transparent (alpha renderer) — mushroom shows through ──
 
       // ── Camera: straight-on for lines, tilted down for field ──
       if (s.camera) {
@@ -755,7 +777,14 @@ export default function V12Page() {
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
           >
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <img src="/images/mushroom-cluster.jpg" alt="" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] max-w-[600px] opacity-[0.12] object-contain" />
+              <img src="/images/mushroom-cluster.jpg" alt="" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vh] max-w-none object-cover opacity-[0.18]"
+                style={{
+                  maskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)',
+                  WebkitMaskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)',
+                }} />
+              {/* Warm ethereal glow */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vw] h-[50vh] rounded-full opacity-[0.08]"
+                style={{ background: 'radial-gradient(ellipse, rgba(200,160,100,0.5) 0%, transparent 60%)' }} />
             </div>
 
             <motion.div
@@ -799,17 +828,56 @@ export default function V12Page() {
       {/* ── WebGL Canvas (behind all content, above ambient imagery) ── */}
       <div ref={canvasContainerRef} className="fixed inset-0 z-[2] pointer-events-none" />
 
-      {/* ── Dark mushroom imagery (ambient background layers) ── */}
+      {/* ── Full-screen mushroom backdrop (BEHIND the WebGL canvas) ── */}
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
-        <img src="/images/plant-dark.jpg" alt="" className="absolute left-0 top-0 h-full w-[30vw] object-cover opacity-[0.06]" 
-          style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)' }} />
-        <img src="/images/mushroom-smoke.jpg" alt="" className="absolute right-0 top-0 h-full w-[30vw] object-cover opacity-[0.06] scale-x-[-1]"
-          style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)' }} />
+        {/* Black base */}
+        <div className="absolute inset-0 bg-black" />
+        
+        {/* Main mushroom — full viewport, centered, slowly breathing */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <img 
+            src="/images/mushroom-cluster.jpg" 
+            alt="" 
+            className="absolute top-1/2 left-1/2 animate-slow-drift w-[130vw] h-[130vh] max-w-none object-cover opacity-[0.35]"
+            style={{
+              maskImage: 'radial-gradient(ellipse 60% 55% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0) 70%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 60% 55% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0) 70%)',
+            }}
+          />
+        </div>
+
+        {/* Ethereal glow behind mushroom */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[60vh] rounded-full opacity-[0.12]"
+          style={{ background: 'radial-gradient(ellipse, rgba(200,160,100,0.4) 0%, rgba(140,100,60,0.15) 35%, transparent 70%)' }} />
+        
+        {/* Secondary warm glow — lower */}
+        <div className="absolute top-[55%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[40vh] rounded-full opacity-[0.08]"
+          style={{ background: 'radial-gradient(ellipse, rgba(255,200,120,0.5) 0%, transparent 60%)' }} />
+
+        {/* Smoke atmospheric layer — breathing */}
+        <img 
+          src="/images/mushroom-smoke.jpg" 
+          alt="" 
+          className="absolute inset-0 w-full h-full object-cover animate-ethereal-pulse"
+          style={{
+            maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 30%, rgba(0,0,0,0.4) 70%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 30%, rgba(0,0,0,0.4) 70%, transparent 100%)',
+          }}
+        />
+
+        {/* Plant-dark side accents */}
+        <img src="/images/plant-dark.jpg" alt="" className="absolute left-0 top-0 h-full w-[25vw] object-cover opacity-[0.04]" 
+          style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
+        <img src="/images/plant-dark.jpg" alt="" className="absolute right-0 top-0 h-full w-[25vw] object-cover opacity-[0.04] scale-x-[-1]"
+          style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
+
+        {/* Vignette overlay */}
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(0,0,0,0.7) 100%)' }} />
       </div>
 
       {/* ── Dark gradient overlay for product section ── */}
       <motion.div style={{ opacity: bgOpacity }} className="fixed inset-0 z-[1] pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/90 to-black/70" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/95 to-black/80" />
       </motion.div>
 
       {/* ── Navigation ── */}
@@ -900,20 +968,29 @@ export default function V12Page() {
         </div>
       </section>
 
-      {/* ═══ SECTION 2.5: Mushroom Smoke Divider ═══ */}
-      <section className="relative z-10 w-full overflow-hidden">
+      {/* ═══ SECTION 2.5: Mushroom Smoke Divider — Ethereal Transition ═══ */}
+      <motion.section 
+        initial={{ opacity: 0 }} 
+        whileInView={{ opacity: 1 }} 
+        viewport={{ once: true, margin: "-10%" }} 
+        transition={{ duration: 1.5, ease: "easeInOut" }}
+        className="relative z-10 w-full overflow-hidden"
+      >
         <div className="relative w-full aspect-[16/6] md:aspect-[16/4]">
           <img 
             src="/images/mushroom-smoke.jpg" 
             alt="" 
-            className="absolute inset-0 w-full h-full object-cover object-center opacity-60"
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-50"
           />
-          <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-black to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black to-transparent" />
-          <div className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-black/80 to-transparent" />
-          <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-black/80 to-transparent" />
+          {/* Ethereal center glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[80%] rounded-full opacity-20"
+            style={{ background: 'radial-gradient(ellipse, rgba(200,170,120,0.5) 0%, transparent 70%)' }} />
+          <div className="absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b from-black via-black/70 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/70 to-transparent" />
+          <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-black to-transparent" />
+          <div className="absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-black to-transparent" />
         </div>
-      </section>
+      </motion.section>
 
       {/* ═══ SECTION 3: Find Your Frequency Quiz ═══ */}
       <section className="relative z-10 w-full min-h-screen flex items-center justify-center py-24">
@@ -1094,13 +1171,9 @@ export default function V12Page() {
         <div className="md:grid md:grid-cols-2 min-h-screen">
           <div className="sticky top-0 h-screen hidden md:flex items-center justify-center">
             <ProductBottle />
-            {/* Small mushroom image accent near bottle */}
-            <img 
-              src="/images/mushroom-cluster.jpg" 
-              alt="" 
-              className="absolute bottom-[8%] left-[10%] w-32 h-32 object-cover rounded-2xl opacity-[0.15] blur-[1px]"
-              style={{ maskImage: 'radial-gradient(circle, black 40%, transparent 70%)', WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 70%)' }}
-            />
+            {/* Ethereal glow accent near bottle */}
+            <div className="absolute bottom-[15%] left-[15%] w-48 h-48 rounded-full opacity-[0.06]"
+              style={{ background: 'radial-gradient(circle, rgba(200,160,100,0.6) 0%, transparent 70%)' }} />
           </div>
           <div className="md:hidden py-12"><ProductBottle /></div>
           <div className="px-6 py-24 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
