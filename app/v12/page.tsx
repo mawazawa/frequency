@@ -552,6 +552,9 @@ export default function V12Page() {
   const [scrolled, setScrolled] = useState(false);
   const [modeId, setModeId] = useState<ModeId>('genesis');
   const [showMicPrompt, setShowMicPrompt] = useState(true);
+  const [quizStep, setQuizStep] = useState(0); // 0 = not started, 1-3 = questions, 4 = result
+  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
+  const [quizResult, setQuizResult] = useState<ModeId | null>(null);
   const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
 
   const sceneRef = useRef<{
@@ -801,6 +804,61 @@ export default function V12Page() {
     setShowMicPrompt(false);
   }, []);
 
+  const quizQuestions = [
+    {
+      question: "What does your body need most right now?",
+      options: [
+        { text: "Calm & grounding", icon: "🌿", weight: 'genesis' as ModeId },
+        { text: "Clarity & focus", icon: "💎", weight: 'revelation' as ModeId },
+        { text: "Energy & expansion", icon: "⚡", weight: 'ascension' as ModeId },
+      ]
+    },
+    {
+      question: "How would you describe your current state?",
+      options: [
+        { text: "Overwhelmed — I need to slow down", icon: "🌊", weight: 'genesis' as ModeId },
+        { text: "Foggy — I need to cut through the noise", icon: "🔮", weight: 'revelation' as ModeId },
+        { text: "Stagnant — I need to break free", icon: "🔥", weight: 'ascension' as ModeId },
+      ]
+    },
+    {
+      question: "When you close your eyes, what do you hear?",
+      options: [
+        { text: "A deep hum, like the earth breathing", icon: "🪨", weight: 'genesis' as ModeId },
+        { text: "A clear tone, like a bell in still air", icon: "🔔", weight: 'revelation' as ModeId },
+        { text: "A rising wave, like wind through a canyon", icon: "🌀", weight: 'ascension' as ModeId },
+      ]
+    }
+  ];
+
+  const handleQuizAnswer = useCallback((answerIndex: number, weight: ModeId) => {
+    const newAnswers = [...quizAnswers, answerIndex];
+    setQuizAnswers(newAnswers);
+    const nextStep = quizStep + 1;
+    
+    if (nextStep > quizQuestions.length) {
+      // Tally results — count weight from each answer
+      const counts: Record<ModeId, number> = { genesis: 0, revelation: 0, ascension: 0 };
+      // Previous answers
+      quizAnswers.forEach((ai, qi) => {
+        if (quizQuestions[qi]) counts[quizQuestions[qi].options[ai].weight]++;
+      });
+      // Current answer
+      counts[weight]++;
+      
+      const result = (Object.entries(counts) as [ModeId, number][]).sort((a, b) => b[1] - a[1])[0][0];
+      setQuizResult(result);
+      setModeId(result); // Morph the field to their frequency
+    }
+    setQuizStep(nextStep);
+  }, [quizStep, quizAnswers, quizQuestions]);
+
+  const startQuiz = useCallback(() => {
+    setQuizStep(1);
+    setQuizAnswers([]);
+    setQuizResult(null);
+  }, []);
+
   const controlPanelOpacity = useTransform(scrollY, [600, 900], [0, 1]);
 
   return (
@@ -974,20 +1032,147 @@ export default function V12Page() {
         </div>
       </section>
 
-      {/* ── Mushroom Hero Image (between field and infusion) ── */}
-      <motion.section
-        initial={{ opacity: 0, y: 40 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-10%" }}
-        transition={{ duration: 1.2, ease: "easeOut" }}
-        className="relative z-10 w-full py-16 md:py-24 flex items-center justify-center"
-      >
-        <div className="relative w-[80vw] max-w-[500px] aspect-square">
-          <img src="/images/mushroom-cluster.jpg" alt="Frequency Mushroom Cluster" className="w-full h-full object-contain opacity-90" />
-          {/* Glow behind the mushroom */}
-          <div className="absolute inset-0 bg-white/5 blur-[80px] rounded-full -z-10" />
+      {/* ═══ SECTION 2.5: Find Your Frequency Quiz ═══ */}
+      <section className="relative z-10 w-full min-h-screen flex items-center justify-center py-24">
+        <div className="max-w-2xl mx-auto px-6 w-full">
+          <AnimatePresence mode="wait">
+            {quizStep === 0 && (
+              <motion.div
+                key="quiz-intro"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.8 }}
+                className="text-center"
+              >
+                {/* Mushroom image above quiz */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 1.2 }}
+                  className="relative w-[60vw] max-w-[350px] aspect-square mx-auto mb-12"
+                >
+                  <img src="/images/mushroom-cluster.jpg" alt="Frequency Mushroom Cluster" className="w-full h-full object-contain opacity-80" />
+                  <div className="absolute inset-0 bg-white/5 blur-[80px] rounded-full -z-10" />
+                </motion.div>
+
+                <h2 className="font-cinzel text-3xl md:text-4xl text-white mb-4 tracking-wide">
+                  Find Your Frequency
+                </h2>
+                <p className="text-white/50 text-sm leading-relaxed mb-10 max-w-md mx-auto">
+                  Every body vibrates at its own frequency. Answer three questions to discover which resonance your system needs most.
+                </p>
+                <button
+                  onClick={startQuiz}
+                  className="group bg-white/5 border border-white/20 backdrop-blur-xl text-white px-10 py-4 rounded-full font-medium hover:bg-white/10 hover:border-white/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+                >
+                  <span className="flex items-center gap-3">
+                    Begin the Ritual
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                </button>
+              </motion.div>
+            )}
+
+            {quizStep >= 1 && quizStep <= quizQuestions.length && (
+              <motion.div
+                key={`quiz-q${quizStep}`}
+                initial={{ opacity: 0, x: 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="text-center"
+              >
+                {/* Progress */}
+                <div className="flex items-center justify-center gap-3 mb-12">
+                  {quizQuestions.map((_, i) => (
+                    <div key={i} className={clsx(
+                      "h-[2px] w-12 rounded-full transition-all duration-500",
+                      i < quizStep ? "bg-white/80" : i === quizStep - 1 ? "bg-white/60" : "bg-white/15"
+                    )} />
+                  ))}
+                </div>
+
+                <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-cinzel block mb-6">
+                  Question {quizStep} of {quizQuestions.length}
+                </span>
+
+                <h3 className="font-playfair italic text-2xl md:text-3xl text-white mb-12 leading-relaxed">
+                  {quizQuestions[quizStep - 1].question}
+                </h3>
+
+                <div className="flex flex-col gap-4 max-w-md mx-auto">
+                  {quizQuestions[quizStep - 1].options.map((opt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleQuizAnswer(i, opt.weight)}
+                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 hover:bg-white/[0.08] hover:border-white/25 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="text-2xl">{opt.icon}</span>
+                        <span className="text-white/80 group-hover:text-white transition-colors font-light">{opt.text}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {quizStep > quizQuestions.length && quizResult && (
+              <motion.div
+                key="quiz-result"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="text-center"
+              >
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.3, duration: 0.8, type: "spring" }}
+                  className="mb-8"
+                >
+                  <span className="text-6xl">
+                    {quizResult === 'genesis' ? '🌿' : quizResult === 'revelation' ? '💎' : '⚡'}
+                  </span>
+                </motion.div>
+
+                <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-cinzel block mb-4">
+                  Your Frequency
+                </span>
+
+                <h3 className="font-cinzel text-4xl md:text-5xl text-white mb-3 tracking-wide">
+                  {MODES[quizResult].hz}
+                </h3>
+                <p className="font-playfair italic text-xl text-white/60 mb-6">
+                  {MODES[quizResult].label}
+                </p>
+
+                <p className="text-white/40 text-sm leading-relaxed max-w-md mx-auto mb-10">
+                  {quizResult === 'genesis' && "Your system craves grounding. The 432Hz frequency — the heartbeat of the Earth — will bring you back to center. This is the frequency of calm, of roots, of remembering what matters."}
+                  {quizResult === 'revelation' && "Your mind needs clarity. The 528Hz frequency — the Love frequency — cuts through fog and restores natural harmony. This is the frequency of transformation and DNA repair."}
+                  {quizResult === 'ascension' && "Your spirit is ready to expand. The 963Hz frequency — the Crown frequency — activates higher consciousness and opens the gate to your full potential."}
+                </p>
+
+                <p className="text-white/30 text-xs mb-12">The field above has shifted to your frequency. Look up.</p>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.5, duration: 0.8 }}
+                >
+                  <ChevronDown className="w-5 h-5 text-white/25 animate-bounce mx-auto" />
+                  <span className="text-[9px] uppercase tracking-widest text-white/20 font-cinzel mt-2 block">
+                    Scroll to your remedy
+                  </span>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </motion.section>
+      </section>
 
       {/* ═══ SECTION 3: The Sonic Infusion ═══ */}
       <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-20%" }} transition={{ duration: 1 }}
@@ -1027,9 +1212,20 @@ export default function V12Page() {
               <div className="flex text-mycelium-gold">{[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}</div>
               <span className="text-white/60 border-b border-white/20 pb-0.5">142 Reviews</span>
             </div>
-            <h2 className="text-5xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">Calm Dose<span className="text-mycelium-gold">.</span></h2>
-            <p className="text-lg text-white/70 leading-relaxed mb-6 font-light">A wellness supplement formulated with functional mushroom fruiting bodies to support everyday calm and balance.</p>
-            <p className="text-sm text-white/50 leading-relaxed mb-10 font-mono">Grown in a 432Hz sound chamber. This is not just a supplement—it is biological resonance.</p>
+            <h2 className="text-5xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">
+              {quizResult === 'revelation' ? 'Clarity Dose' : quizResult === 'ascension' ? 'Ascend Dose' : 'Calm Dose'}
+              <span className="text-mycelium-gold">.</span>
+            </h2>
+            <p className="text-lg text-white/70 leading-relaxed mb-6 font-light">
+              {quizResult === 'revelation' 
+                ? 'A precision-formulated nootropic blend to sharpen focus and dissolve mental fog.'
+                : quizResult === 'ascension'
+                ? 'An expansion-catalyst blend to unlock energy, creativity, and higher awareness.'
+                : 'A wellness supplement formulated with functional mushroom fruiting bodies to support everyday calm and balance.'}
+            </p>
+            <p className="text-sm text-white/50 leading-relaxed mb-10 font-mono">
+              Grown in a {quizResult ? MODES[quizResult].hz : '432 Hz'} sound chamber. This is not just a supplement—it is biological resonance.
+            </p>
             <div className="grid grid-cols-2 gap-4 mb-10">
               {["Anxiety Relief","Mental Clarity","Sleep Support","100% Organic"].map((item, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-white/80">
