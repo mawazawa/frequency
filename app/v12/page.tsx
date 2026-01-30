@@ -719,9 +719,9 @@ export default function V12Page() {
       // ── Phase logic ──
       // Breath fade in over first 2s
       const breathFadeIn = Math.min(elapsed / 2.0, 1.0);
-      // Scroll phases
-      const breathScroll = smoothstep(0.0, 1.0, scroll);      // breath compresses 0→1vh
-      const fieldReveal  = smoothstep(0.5, 1.2, scroll);       // field fades in
+      // Scroll phases — overlapping crossfade for smooth transition
+      const breathScroll = smoothstep(0.2, 0.8, scroll);       // breath starts compressing earlier
+      const fieldReveal  = smoothstep(0.4, 1.0, scroll);       // field fades in while breath is still fading
       const fieldScroll  = smoothstep(0.5, 1.5, scroll);       // field horizon unfold
 
       // ── Update Breath Lines ──
@@ -918,8 +918,8 @@ export default function V12Page() {
         )}
       </AnimatePresence>
 
-      {/* ── WebGL Canvas ── */}
-      <div ref={canvasContainerRef} className="fixed inset-0 z-0" />
+      {/* ── WebGL Canvas (behind all content, above ambient imagery) ── */}
+      <div ref={canvasContainerRef} className="fixed inset-0 z-[2] pointer-events-none" />
 
       {/* ── Dark mushroom imagery (ambient background layers) ── */}
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
@@ -955,56 +955,44 @@ export default function V12Page() {
 
       {/* ═══ SECTION 1: "The Breath" Hero ═══ */}
       <section className="relative h-[200vh] w-full">
-        <div className="sticky top-0 h-screen w-full flex items-center justify-center pointer-events-none">
-          {/* Typography overlay — clean text over the breathing lines */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5, duration: 1.5, ease: "easeOut" }}
-            className="relative z-10 text-center select-none"
-          >
+        <div className="sticky top-0 h-screen w-full flex items-center justify-center pointer-events-none z-[5]">
+          {/* Typography overlay — "God is" fades in first, then "Frequency" drops in with a stagger */}
+          <div className="relative z-10 text-center select-none">
             <h1 className="flex flex-col items-center">
-              <span className="text-4xl md:text-6xl font-light tracking-[0.15em] uppercase text-white/70 font-cinzel block mb-3">
+              <motion.span
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 0.7, y: 0 }}
+                transition={{ delay: 1.0, duration: 1.5, ease: "easeOut" }}
+                className="text-4xl md:text-6xl font-light tracking-[0.15em] uppercase text-white font-cinzel block mb-3"
+              >
                 God is
-              </span>
-              <span className="font-playfair italic text-6xl md:text-9xl text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.25)]">
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, y: 30, filter: 'blur(12px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ delay: 2.0, duration: 2.0, ease: "easeOut" }}
+                className="font-playfair italic text-7xl md:text-[10rem] leading-none text-white drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]"
+              >
                 Frequency
-              </span>
+              </motion.span>
             </h1>
-          </motion.div>
+          </div>
 
-          {/* Mic button */}
+          {/* Scroll hint — no mic button here, the modal handles that */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 3, duration: 1 }}
-            className="absolute bottom-32 z-20 pointer-events-auto"
+            transition={{ delay: 4.5, duration: 1 }}
+            className="absolute bottom-10 flex flex-col items-center gap-2 z-20"
           >
-            <GlassButton onClick={handleEnableAudio} active={audioReady} className="w-20 h-20 rounded-full flex items-center justify-center">
-              <WaveIcon active={audioReady} />
-            </GlassButton>
-            <div className="mt-4 text-center">
-              <span className="text-[10px] uppercase tracking-[0.4em] text-gray-500">
-                {audioReady ? 'Listening' : 'Find your Frequency'}
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Scroll hint */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 4, duration: 1 }}
-            className="absolute bottom-8 flex flex-col items-center gap-2 z-20"
-          >
-            <span className="text-[10px] uppercase tracking-widest text-white/25 font-cinzel">Scroll to Enter the Field</span>
-            <ChevronDown className="w-4 h-4 text-white/25 animate-bounce" />
+            <span className="text-[10px] uppercase tracking-widest text-white/30 font-cinzel">Scroll to Enter the Field</span>
+            <ChevronDown className="w-4 h-4 text-white/30 animate-bounce" />
           </motion.div>
         </div>
       </section>
 
       {/* ═══ SECTION 2: Field + Controls (Chladni Plate) ═══ */}
-      <section className="relative z-10 min-h-screen w-full flex flex-col justify-end pb-12 px-6">
+      <section className="relative z-[10] min-h-screen w-full flex flex-col justify-end pb-12 px-6">
         <motion.div style={{ opacity: controlPanelOpacity }} className="max-w-4xl mx-auto w-full">
           <div className="backdrop-blur-2xl bg-black/40 border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
             <div className="absolute inset-0 opacity-[0.02] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
@@ -1039,40 +1027,51 @@ export default function V12Page() {
             {quizStep === 0 && (
               <motion.div
                 key="quiz-intro"
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
                 exit={{ opacity: 0, y: -20 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.8 }}
+                transition={{ duration: 1 }}
                 className="text-center"
               >
-                {/* Mushroom image above quiz */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 1.2 }}
-                  className="relative w-[60vw] max-w-[350px] aspect-square mx-auto mb-12"
-                >
-                  <img src="/images/mushroom-cluster.jpg" alt="Frequency Mushroom Cluster" className="w-full h-full object-contain opacity-80" />
-                  <div className="absolute inset-0 bg-white/5 blur-[80px] rounded-full -z-10" />
-                </motion.div>
-
-                <h2 className="font-cinzel text-3xl md:text-4xl text-white mb-4 tracking-wide">
-                  Find Your Frequency
-                </h2>
-                <p className="text-white/50 text-sm leading-relaxed mb-10 max-w-md mx-auto">
-                  Every body vibrates at its own frequency. Answer three questions to discover which resonance your system needs most.
-                </p>
-                <button
-                  onClick={startQuiz}
-                  className="group bg-white/5 border border-white/20 backdrop-blur-xl text-white px-10 py-4 rounded-full font-medium hover:bg-white/10 hover:border-white/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
-                >
-                  <span className="flex items-center gap-3">
-                    Begin the Ritual
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </span>
-                </button>
+                {/* Full-width cinematic mushroom hero */}
+                <div className="relative w-screen -mx-6 mb-16 overflow-hidden" style={{ maxWidth: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
+                  <div className="relative w-full aspect-[16/10] md:aspect-[16/7] overflow-hidden">
+                    {/* The image — full bleed */}
+                    <img 
+                      src="/images/mushroom-cluster.jpg" 
+                      alt="" 
+                      className="absolute inset-0 w-full h-full object-cover object-center"
+                    />
+                    {/* Top gradient fade into black */}
+                    <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black via-black/60 to-transparent" />
+                    {/* Bottom gradient fade into black */}
+                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/80 to-transparent" />
+                    {/* Side vignettes */}
+                    <div className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-black/60 to-transparent" />
+                    <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-black/60 to-transparent" />
+                    {/* Subtle warm glow from behind */}
+                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[60%] h-[60%] bg-white/[0.04] blur-[100px] rounded-full" />
+                    {/* Content overlay at bottom */}
+                    <div className="absolute bottom-0 inset-x-0 pb-12 pt-32 bg-gradient-to-t from-black via-black/70 to-transparent flex flex-col items-center">
+                      <h2 className="font-cinzel text-3xl md:text-5xl text-white mb-4 tracking-wide drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]">
+                        Find Your Frequency
+                      </h2>
+                      <p className="text-white/50 text-sm leading-relaxed mb-8 max-w-md mx-auto px-6">
+                        Every body vibrates at its own frequency. Answer three questions to discover which resonance your system needs most.
+                      </p>
+                      <button
+                        onClick={startQuiz}
+                        className="group bg-white/5 border border-white/25 backdrop-blur-xl text-white px-10 py-4 rounded-full font-medium hover:bg-white/10 hover:border-white/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+                      >
+                        <span className="flex items-center gap-3">
+                          Begin the Ritual
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             )}
 
