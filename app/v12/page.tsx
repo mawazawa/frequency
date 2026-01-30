@@ -31,6 +31,11 @@ const FontStyles = () => (
       50% { height: 16px; opacity: 1; }
     }
     .animate-wave { animation: wave ease-in-out infinite; }
+    @keyframes gentleBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(4px); }
+    }
+    .animate-gentle-bounce { animation: gentleBounce 2s ease-in-out infinite; }
     @keyframes etherealPulse {
       0%, 100% { opacity: 0.08; transform: scale(1); }
       50% { opacity: 0.14; transform: scale(1.02); }
@@ -41,6 +46,13 @@ const FontStyles = () => (
       50% { transform: translate(-50%, -50%) scale(1.05); }
     }
     .animate-slow-drift { animation: slowDrift 12s ease-in-out infinite; }
+    @keyframes emojiBounce {
+      0% { transform: scale(0); }
+      50% { transform: scale(1.25); }
+      70% { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+    .animate-emoji-bounce { animation: emojiBounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
   `}</style>
 );
 
@@ -910,7 +922,8 @@ export default function V12Page() {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 0.7, y: 0 }}
                 transition={{ delay: 1.0, duration: 1.5, ease: "easeOut" }}
-                className="text-4xl md:text-6xl font-light tracking-[0.15em] uppercase text-white font-cinzel block mb-3"
+                className="text-4xl md:text-6xl tracking-[0.2em] uppercase text-white font-cinzel block mb-3"
+                style={{ fontWeight: 300 }}
               >
                 God is
               </motion.span>
@@ -918,7 +931,8 @@ export default function V12Page() {
                 initial={{ opacity: 0, y: 30, filter: 'blur(12px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ delay: 2.0, duration: 2.0, ease: "easeOut" }}
-                className="font-playfair italic text-7xl md:text-[10rem] leading-none text-white drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]"
+                className="font-playfair italic text-7xl md:text-[10rem] leading-none text-white"
+                style={{ textShadow: '0 0 80px rgba(255,255,255,0.15), 0 0 40px rgba(255,255,255,0.1)' }}
               >
                 Frequency
               </motion.span>
@@ -934,7 +948,7 @@ export default function V12Page() {
             style={{ opacity: textOpacity } as any}
           >
             <span className="text-[10px] uppercase tracking-widest text-white/30 font-cinzel">Scroll to Enter the Field</span>
-            <ChevronDown className="w-4 h-4 text-white/30 animate-bounce" />
+            <ChevronDown className="w-4 h-4 text-white/30 animate-gentle-bounce" />
           </motion.div>
         </div>
       </section>
@@ -1028,9 +1042,9 @@ export default function V12Page() {
                       </p>
                       <button
                         onClick={startQuiz}
-                        className="group bg-white/5 border border-white/25 backdrop-blur-xl text-white px-10 py-4 rounded-full font-medium hover:bg-white/10 hover:border-white/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+                        className="group w-full sm:w-auto bg-white/5 border border-white/25 backdrop-blur-xl text-white px-10 py-4 rounded-full font-medium hover:bg-white/10 hover:border-white/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
                       >
-                        <span className="flex items-center gap-3">
+                        <span className="flex items-center justify-center gap-3">
                           Begin the Ritual
                           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </span>
@@ -1044,17 +1058,17 @@ export default function V12Page() {
             {quizStep >= 1 && quizStep <= quizQuestions.length && (
               <motion.div
                 key={`quiz-q${quizStep}`}
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
+                initial={{ opacity: 0, x: 40, scale: 0.98 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -40, scale: 0.98 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
                 className="text-center"
               >
                 <div className="flex items-center justify-center gap-3 mb-12">
                   {quizQuestions.map((_, i) => (
                     <div key={i} className={clsx(
-                      "h-[2px] w-12 rounded-full transition-all duration-500",
-                      i < quizStep ? "bg-white/80" : i === quizStep - 1 ? "bg-white/60" : "bg-white/15"
+                      "h-[3px] sm:h-[2px] w-14 sm:w-12 rounded-full transition-all duration-500",
+                      i < quizStep ? "bg-white/80" : i === quizStep - 1 ? "bg-white/60" : "bg-white/20 sm:bg-white/15"
                     )} />
                   ))}
                 </div>
@@ -1072,11 +1086,11 @@ export default function V12Page() {
                     <button
                       key={i}
                       onClick={() => handleQuizAnswer(i, opt.weight)}
-                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 hover:bg-white/[0.08] hover:border-white/25 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[56px] sm:min-h-0 hover:bg-white/[0.08] hover:border-white/25 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]"
                     >
                       <div className="flex items-center gap-4">
-                        <span className="text-2xl">{opt.icon}</span>
-                        <span className="text-white/80 group-hover:text-white transition-colors font-light">{opt.text}</span>
+                        <span className="text-2xl sm:text-2xl">{opt.icon}</span>
+                        <span className="text-base sm:text-base text-white/80 group-hover:text-white transition-colors font-light">{opt.text}</span>
                       </div>
                     </button>
                   ))}
@@ -1098,7 +1112,7 @@ export default function V12Page() {
                   transition={{ delay: 0.3, duration: 0.8, type: "spring" }}
                   className="mb-8"
                 >
-                  <span className="text-6xl">
+                  <span className="text-6xl inline-block animate-emoji-bounce">
                     {quizResult === 'genesis' ? '🌿' : quizResult === 'revelation' ? '💎' : '⚡'}
                   </span>
                 </motion.div>
@@ -1181,7 +1195,7 @@ export default function V12Page() {
               <div className="flex text-mycelium-gold">{[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}</div>
               <span className="text-white/60 border-b border-white/20 pb-0.5">142 Reviews</span>
             </div>
-            <h2 className="text-5xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">
+            <h2 className="text-4xl sm:text-5xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">
               {quizResult === 'revelation' ? 'Clarity Dose' : quizResult === 'ascension' ? 'Ascend Dose' : 'Calm Dose'}
               <span className="text-mycelium-gold">.</span>
             </h2>
