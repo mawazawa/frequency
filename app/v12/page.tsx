@@ -1,14 +1,19 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, Sprout, Activity } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
-import * as THREE from 'three';
+import { Canvas } from '@react-three/fiber';
 import clsx from 'clsx';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useMicAudio } from '@/hooks/useMicAudio';
-import { useAmbientSound } from '@/hooks/useAmbientSound';
+
+// Shared Components & Context
+import { useAudio } from '@/components/AudioProvider';
+import { GlassButton } from '@/components/ui/GlassButton';
+import { WaveIcon } from '@/components/ui/WaveIcon';
+import { Accordion } from '@/components/ui/Accordion';
+import { GPGPUParticles } from '@/components/cymatics/GPGPUParticles';
 
 // ═══════════════════════════════════════════════════════════════════
 // FONTS & STYLES
@@ -65,8 +70,8 @@ const MODES = {
     id: 'genesis',
     label: 'Genesis',
     hz: '432 Hz',
-    color1: [1.0, 0.5, 0.2],
-    color2: [1.0, 0.9, 0.8],
+    color1: [1.0, 0.5, 0.2] as [number, number, number],
+    color2: [1.0, 0.9, 0.8] as [number, number, number],
     bg: [0.02, 0.008, 0.004],
     tension: 0.15,
     friction: 0.85,
@@ -78,8 +83,8 @@ const MODES = {
     id: 'revelation',
     label: 'Revelation',
     hz: '528 Hz',
-    color1: [0.0, 0.7, 0.6],
-    color2: [0.8, 0.9, 1.0],
+    color1: [0.0, 0.7, 0.6] as [number, number, number],
+    color2: [0.8, 0.9, 1.0] as [number, number, number],
     bg: [0.0, 0.031, 0.039],
     tension: 0.2,
     friction: 0.8,
@@ -91,8 +96,8 @@ const MODES = {
     id: 'ascension',
     label: 'Ascension',
     hz: '963 Hz',
-    color1: [0.5, 0.0, 1.0],
-    color2: [1.0, 0.6, 0.2],
+    color1: [0.5, 0.0, 1.0] as [number, number, number],
+    color2: [1.0, 0.6, 0.2] as [number, number, number],
     bg: [0.039, 0.0, 0.059],
     tension: 0.1,
     friction: 0.9,
@@ -105,291 +110,12 @@ const MODES = {
 type ModeId = keyof typeof MODES;
 
 // ═══════════════════════════════════════════════════════════════════
-// SPRING PHYSICS
-// ═══════════════════════════════════════════════════════════════════
-class Spring {
-  val: number; target: number; vel: number;
-  constructor(v: number) { this.val = v; this.target = v; this.vel = 0; }
-  update(target: number, tension: number, friction: number) {
-    this.target = target;
-    this.vel += (this.target - this.val) * tension;
-    this.vel *= friction;
-    this.val += this.vel;
-    return this.val;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// UNIFIED SHADER — Single particle system: Lines → Chladni Field
-// ═══════════════════════════════════════════════════════════════════
-const unifiedVertexShader = /* glsl */ `
-  uniform float uTime;
-  uniform float uBass;
-  uniform float uMid;
-  uniform float uHigh;
-  uniform float uVolume;
-  uniform float uMorph;        // 0 = lines, 1 = full Chladni field
-  uniform float uFadeIn;       // 0→1 over first 2s
-  uniform float uAudioActive;
-  uniform float uN;
-  uniform float uM;
-  uniform int uShapeFn;
-  uniform vec3 uColor1;
-  uniform vec3 uColor2;
-
-  varying float vDisplacement;
-  varying vec2 vUv;
-  varying float vDist;
-  varying float vMorph;
-  varying float vEnvelope;
-
-  // ── Hash noise ──
-  float hash(vec2 p) {
-    return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x))));
-  }
-  float noise(vec2 x) {
-    vec2 i = floor(x); vec2 f = fract(x);
-    float a = hash(i); float b = hash(i + vec2(1,0));
-    float c = hash(i + vec2(0,1)); float d = hash(i + vec2(1,1));
-    vec2 u = f*f*(3.0-2.0*f);
-    return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
-  }
-
-  // ── Chladni pattern ──
-  float chladni(vec2 p, float n, float m, float a, float b) {
-    float PI = 3.14159265;
-    return a*sin(PI*n*p.x)*sin(PI*m*p.y) + b*sin(PI*m*p.x)*sin(PI*n*p.y);
-  }
-
-  void main() {
-    vUv = uv;
-    vMorph = uMorph;
-    vec2 pos = uv * 2.0 - 1.0;  // -1 to 1
-    vDist = length(pos);
-    float t = uTime;
-
-    // ── Shape envelope (tapers edges for organic form) ──
-    float edgeFadeX = 1.0 - pow(abs(pos.x), 2.4);
-    float edgeFadeY = 1.0 - pow(abs(pos.y), 2.0);
-    float envelope = edgeFadeX * edgeFadeY;
-    vEnvelope = envelope;
-
-    // ════════════════════════════════════════════
-    // LINE DISPLACEMENT (morph = 0)
-    // Terrain hills + breathing + audio ripples
-    // Applied to Y axis for landscape silhouette
-    // ════════════════════════════════════════════
-
-    // Multi-octave terrain (static landscape shape)
-    float terrain = 0.0;
-    terrain += noise(pos * 2.0 + vec2(0.3, 0.0)) * 1.2;
-    terrain += noise(pos * 4.0 + vec2(1.7, 0.5)) * 0.5;
-    terrain += noise(pos * 8.0 + vec2(-2.1, 1.0)) * 0.2;
-    terrain *= envelope;
-
-    // Gentle breathing undulation
-    float breath = sin(t * 0.8 + pos.x * 6.28) * 0.08
-                 + sin(t * 0.5 + pos.y * 6.28) * 0.05;
-    breath *= envelope;
-
-    // Audio-reactive ripples in line mode
-    float dist = length(pos);
-    float bassRipple = sin(dist * 6.0 - t * 3.0) * uBass * 0.8;
-    float midRipple  = sin(dist * 12.0 - t * 5.0) * uMid * 0.5
-                     + sin(dist * 18.0 - t * 7.0 + 1.0) * uMid * 0.25;
-    float highRipple = noise(vec2(pos.x * 30.0 + t * 3.0, pos.y * 20.0)) * uHigh * 0.3;
-    float audioLine = (bassRipple + midRipple + highRipple) * envelope;
-
-    float lineDisp = terrain * 0.7 + breath + audioLine;
-
-    // ════════════════════════════════════════════
-    // FIELD DISPLACEMENT (morph = 1)
-    // Chladni plate with full audio reactivity
-    // Applied to Z axis for 3D plate
-    // ════════════════════════════════════════════
-
-    float n = uN + uBass * 2.0;
-    float m = uM + uMid * 3.0;
-    float chladni1 = chladni(pos, n, m, 1.0, -1.0);
-    float chladni2 = chladni(pos, n + 2.0, m + 1.0, 0.5, 0.5);
-    float fieldDisp = 0.0;
-
-    if (uShapeFn == 0) {
-      // Genesis: warm, organic
-      fieldDisp = chladni1 * (0.5 + uVolume * 2.5);
-      fieldDisp += chladni2 * uBass * 0.5;
-      fieldDisp *= 1.0 + sin(t * 0.5) * 0.15;
-    } else if (uShapeFn == 1) {
-      // Revelation: crystalline, geometric
-      float crystal = chladni(pos, floor(n), floor(m), 1.0, 1.0);
-      vec2 grid = abs(fract(pos * (3.0 + uBass)) - 0.5);
-      float gridP = 1.0 - max(grid.x, grid.y);
-      fieldDisp = mix(crystal, gridP, 0.5) * (0.5 + uVolume * 3.0);
-      fieldDisp *= cos(t * 1.5 + vDist * 4.0);
-      fieldDisp += uMid * noise(pos * 10.0 + t) * 1.5;
-    } else {
-      // Ascension: turbulent, expansive
-      float turb = chladni1 + 0.5 * chladni2;
-      float n1 = noise(pos * 4.0 + t * 0.5);
-      fieldDisp = (turb * 0.6 + n1 * 0.4) * (0.5 + uVolume * 4.0);
-      fieldDisp += sin(vDist * 8.0 - t) * uMid * 2.0;
-      fieldDisp += uHigh * noise(pos * 20.0 + t * 2.0) * 1.5;
-    }
-
-    // ════════════════════════════════════════════
-    // MORPH: blend and position
-    // ════════════════════════════════════════════
-
-    vec3 newPos = position;
-
-    // Y compression: tight bands at morph=0, full spread at morph=1
-    float yScale = mix(0.08, 1.0, uMorph);
-    newPos.y *= yScale;
-
-    // Line displacement → Y (terrain shape, fades out with morph)
-    newPos.y += lineDisp * (1.0 - uMorph);
-
-    // Field displacement → Z (Chladni plate, fades in with morph)
-    newPos.z += fieldDisp * uMorph;
-
-    // Subtle band noise during transition (keeps visual interest)
-    float bandNoise = noise(pos * 5.0 + t) * 0.3 * uMorph * (1.0 - uMorph) * 4.0; // peaks at morph=0.5
-    newPos.y += bandNoise;
-
-    // Track total displacement magnitude for coloring
-    float totalDisp = abs(lineDisp * (1.0 - uMorph)) + abs(fieldDisp * uMorph);
-    vDisplacement = totalDisp;
-
-    // ── Point size ──
-    vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
-    // Lines: small tight points; Field: larger reactive points
-    float lineSize = 1.8 + uMid * 1.0;
-    float fieldSize = 2.0 + uMid * 4.0 + vDisplacement * 1.5;
-    float baseSize = mix(lineSize, fieldSize, uMorph);
-    gl_PointSize = baseSize * (8.0 / -mvPosition.z);
-
-    // Fade in
-    gl_PointSize *= uFadeIn;
-
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const unifiedFragmentShader = /* glsl */ `
-  uniform vec3 uColor1;
-  uniform vec3 uColor2;
-  uniform float uMid;
-  uniform float uFadeIn;
-  uniform float uAudioActive;
-  uniform float uCenterClearing;
-
-  varying float vDisplacement;
-  varying float vDist;
-  varying float vMorph;
-  varying float vEnvelope;
-
-  void main() {
-    // Circular point shape
-    if (length(gl_PointCoord - 0.5) > 0.5) discard;
-
-    // ── Line color: silver/white with displacement brightness ──
-    float brightness = 0.75 + vDisplacement * 0.5;
-    brightness = min(brightness, 1.0);
-    vec3 lineColor = vec3(brightness, brightness, brightness * 1.02);
-    float lineGlow = 1.8; // bright luminous lines
-
-    // ── Field color: mode-specific with audio glow ──
-    vec3 fieldColor = mix(uColor1, uColor2, smoothstep(0.0, 1.5, vDisplacement));
-    float fieldGlow = 1.0 + uMid * 1.5;
-
-    // ── Blend by morph ──
-    vec3 color = mix(lineColor * lineGlow, fieldColor * fieldGlow, vMorph);
-
-    // ── Alpha ──
-    float edgeAlpha = 1.0 - smoothstep(0.6, 1.0, vDist);
-    // Lines: semi-transparent, slightly boosted by displacement
-    float lineAlpha = (vEnvelope * 0.3 + 0.7) * 0.85;
-    lineAlpha += vDisplacement * 0.3 * uAudioActive;
-    // Field: full opacity with edge falloff
-    float fieldAlpha = 1.0;
-    float alpha = mix(lineAlpha, fieldAlpha, vMorph) * edgeAlpha;
-    alpha *= uFadeIn;
-
-    // ── Center clearing: fade particles near center to reveal mushroom behind ──
-    float centerDist = vDist;
-    float clearingRadius = 0.25 * uCenterClearing;
-    float clearingFade = smoothstep(clearingRadius, clearingRadius + 0.2, centerDist);
-    alpha *= mix(1.0, clearingFade, uCenterClearing);
-
-    alpha = clamp(alpha, 0.0, 1.0);
-
-    gl_FragColor = vec4(color, alpha);
-  }
-`;
-
-// ═══════════════════════════════════════════════════════════════════
-// SHADERS — Ether Background Particles
-// ═══════════════════════════════════════════════════════════════════
-const etherVertexShader = /* glsl */ `
-  uniform float uTime; uniform float uMorph; uniform float uMid;
-  attribute vec3 aRandom;
-  void main() {
-    vec3 pos = position;
-    pos.x += sin(uTime*0.5*aRandom.x)*0.5;
-    pos.y += cos(uTime*0.3*aRandom.y)*0.5;
-    pos.z += uMid*aRandom.z*5.0;
-    pos.y *= mix(0.08, 1.0, pow(uMorph, 2.0));
-    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = (1.5+aRandom.z+uMid*2.0)*(6.0/-mvPosition.z);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const etherFragmentShader = /* glsl */ `
-  uniform vec3 uColor;
-  void main() {
-    if (length(gl_PointCoord-0.5)>0.5) discard;
-    gl_FragColor = vec4(uColor, 0.35);
-  }
-`;
-
-// ═══════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════
 const smoothstep = (e0: number, e1: number, x: number) => {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
 };
-
-// ═══════════════════════════════════════════════════════════════════
-// UI COMPONENTS
-// ═══════════════════════════════════════════════════════════════════
-const WaveIcon = ({ active }: { active: boolean }) => (
-  <div className="flex items-center justify-center gap-[3px] w-6 h-6">
-    {[1,2,3,4,5].map(i => (
-      <div key={i}
-        className={`w-1 bg-white rounded-full transition-all duration-300 ${active ? 'animate-wave' : 'h-1 opacity-50'}`}
-        style={{ height: active ? undefined : '4px', animationDelay: `${i*0.1}s`, animationDuration: '0.8s' }}
-      />
-    ))}
-  </div>
-);
-
-const GlassButton = ({ onClick, children, className = '', active = false }: {
-  onClick?: () => void; children: React.ReactNode; className?: string; active?: boolean;
-}) => (
-  <button onClick={onClick}
-    className={clsx(
-      "relative group overflow-hidden backdrop-blur-xl border transition-all duration-300 rounded-2xl",
-      active ? "bg-white/10 border-[#D4AF37]/30 shadow-[0_0_20px_rgba(212,175,55,0.12)]"
-             : "bg-white/5 border-white/10 hover:bg-white/8 hover:border-[#D4AF37]/20",
-      className
-    )}>
-    <div className="absolute inset-[1px] rounded-2xl border border-white/20 pointer-events-none opacity-50" />
-    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC44IiBudW1PY3RhdmVzPSI0IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIi8+PC9zdmc+')]" />
-    <div className="relative z-10">{children}</div>
-  </button>
-);
 
 const ProductBottle = () => (
   <div className="relative w-full h-[60vh] md:h-[80vh] flex items-center justify-center">
@@ -416,25 +142,6 @@ const ProductBottle = () => (
     <div className="absolute bottom-[8%] w-72 h-10 bg-black/25 blur-[25px] rounded-[100%]" />
   </div>
 );
-
-const Accordion = ({ title, children }: { title: string; children: React.ReactNode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  return (
-    <div className="border-b border-white/10 py-4">
-      <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full text-left group">
-        <span className={clsx("font-sans font-medium text-sm transition-colors", isOpen ? "text-mycelium-gold" : "text-white/80 group-hover:text-white")}>{title}</span>
-        <ChevronDown className={clsx("w-4 h-4 transition-transform", isOpen ? "rotate-180 text-mycelium-gold" : "text-white/40")} />
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="pt-4 pb-2 text-white/60 text-sm leading-relaxed">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
 
 const PurchaseWidget = () => {
   const [subType, setSubType] = useState<'sub'|'once'>('sub');
@@ -476,7 +183,6 @@ const PurchaseWidget = () => {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════
 export default function V12Page() {
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [modeId, setModeId] = useState<ModeId>('genesis');
@@ -484,230 +190,14 @@ export default function V12Page() {
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<ModeId | null>(null);
-  const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
-  const { startAmbient } = useAmbientSound();
+  
+  // Use Global Audio Context
+  const { isReady: audioReady, startAudio } = useAudio();
 
   // Text scroll transforms — fades out and drifts up with parallax
   const textOpacity = useTransform(scrollY, [0, 200], [1, 0]);
   const textY = useTransform(scrollY, [0, 400], [0, -180]);
-
-  const sceneRef = useRef<{
-    renderer?: THREE.WebGLRenderer;
-    scene?: THREE.Scene;
-    camera?: THREE.PerspectiveCamera;
-    fieldMaterial?: THREE.ShaderMaterial;
-    fieldPoints?: THREE.Points;
-    etherMaterial?: THREE.ShaderMaterial;
-    etherPoints?: THREE.Points;
-  }>({});
-
-  const physicsRef = useRef({
-    bass: new Spring(0), mid: new Spring(0), high: new Spring(0), vol: new Spring(0),
-    morph: new Spring(0), clearing: new Spring(0),
-    n: new Spring(MODES.genesis.n), m: new Spring(MODES.genesis.m),
-    color1r: new Spring(MODES.genesis.color1[0]), color1g: new Spring(MODES.genesis.color1[1]), color1b: new Spring(MODES.genesis.color1[2]),
-    color2r: new Spring(MODES.genesis.color2[0]), color2g: new Spring(MODES.genesis.color2[1]), color2b: new Spring(MODES.genesis.color2[2]),
-    bgr: new Spring(MODES.genesis.bg[0]), bgg: new Spring(MODES.genesis.bg[1]), bgb: new Spring(MODES.genesis.bg[2]),
-  });
-
-  const stateRef = useRef({ modeId: 'genesis' as ModeId, startTime: 0, disposed: false });
-
   const bgOpacity = useTransform(scrollY, [1500, 2500], [0, 1]);
-
-  // ─── Three.js Setup ───
-  useEffect(() => {
-    const container = canvasContainerRef.current;
-    if (!container) return;
-
-    const scene = new THREE.Scene();
-    scene.background = null;
-
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 0, 7);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", alpha: true });
-    renderer.setClearColor(0x000000, 0);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
-
-    // ── UNIFIED PARTICLE SYSTEM ──
-    // Single PlaneGeometry 220×220 that morphs from lines to Chladni field
-    const fieldGeo = new THREE.PlaneGeometry(8, 8, 220, 220);
-    const fieldMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime:        { value: 0 },
-        uBass:        { value: 0 },
-        uMid:         { value: 0 },
-        uHigh:        { value: 0 },
-        uVolume:      { value: 0 },
-        uMorph:       { value: 0 },
-        uFadeIn:      { value: 0 },
-        uAudioActive: { value: 0 },
-        uN:           { value: MODES.genesis.n },
-        uM:           { value: MODES.genesis.m },
-        uShapeFn:     { value: 0 },
-        uColor1:      { value: new THREE.Vector3(...MODES.genesis.color1) },
-        uColor2:      { value: new THREE.Vector3(...MODES.genesis.color2) },
-        uCenterClearing: { value: 0 },
-      },
-      vertexShader: unifiedVertexShader,
-      fragmentShader: unifiedFragmentShader,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const fieldPoints = new THREE.Points(fieldGeo, fieldMat);
-    fieldPoints.rotation.x = -0.2;
-    scene.add(fieldPoints);
-
-    // ── Ether Background Particles ──
-    const etherCount = 3000;
-    const etherPos = new Float32Array(etherCount * 3);
-    const etherRnd = new Float32Array(etherCount * 3);
-    for (let i = 0; i < etherCount; i++) {
-      etherPos[i*3]=(Math.random()-0.5)*14; etherPos[i*3+1]=(Math.random()-0.5)*10; etherPos[i*3+2]=(Math.random()-0.5)*6;
-      etherRnd[i*3]=Math.random(); etherRnd[i*3+1]=Math.random(); etherRnd[i*3+2]=Math.random();
-    }
-    const etherGeo = new THREE.BufferGeometry();
-    etherGeo.setAttribute('position', new THREE.BufferAttribute(etherPos, 3));
-    etherGeo.setAttribute('aRandom', new THREE.BufferAttribute(etherRnd, 3));
-    const etherMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime:  { value: 0 },
-        uMorph: { value: 0 },
-        uMid:   { value: 0 },
-        uColor: { value: new THREE.Vector3(...MODES.genesis.color2) },
-      },
-      vertexShader: etherVertexShader,
-      fragmentShader: etherFragmentShader,
-      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    });
-    const etherPoints = new THREE.Points(etherGeo, etherMat);
-    scene.add(etherPoints);
-
-    sceneRef.current = { renderer, scene, camera, fieldMaterial: fieldMat, fieldPoints, etherMaterial: etherMat, etherPoints };
-    stateRef.current.startTime = performance.now();
-
-    const handleResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      stateRef.current.disposed = true;
-      window.removeEventListener('resize', handleResize);
-      fieldGeo.dispose();
-      fieldMat.dispose();
-      etherGeo.dispose();
-      etherMat.dispose();
-      scene.clear();
-      renderer.dispose();
-      if (container) container.innerHTML = '';
-    };
-  }, []);
-
-  // ─── Animation Loop ───
-  useEffect(() => {
-    let frameId: number;
-
-    const animate = () => {
-      if (stateRef.current.disposed) return;
-      const s = sceneRef.current;
-      if (!s.renderer || !s.scene || !s.camera) return;
-
-      const elapsed = (performance.now() - stateRef.current.startTime) * 0.001;
-      const scroll = window.scrollY / window.innerHeight;
-
-      const mode = MODES[stateRef.current.modeId];
-      const p = physicsRef.current;
-
-      // ── Audio ──
-      const audio = getFrequencyData();
-      const tension = mode.tension;
-      const friction = mode.friction;
-      const bass = p.bass.update(audio.bass, tension, friction);
-      const mid  = p.mid.update(audio.mid, tension, friction);
-      const high = p.high.update(audio.high, tension, friction);
-      const vol  = p.vol.update((audio.bass + audio.mid + audio.high) / 3, tension, friction);
-
-      const ambientVol = Math.sin(elapsed * 1.5) * 0.04 + 0.07;
-      const ambientMid = Math.cos(elapsed * 1.2) * 0.04;
-      const effectiveVol = Math.max(vol, ambientVol);
-      const effectiveMid = audioReady ? mid : Math.max(mid, ambientMid + 0.05);
-
-      // ── Morph: scroll-driven, spring-smoothed ──
-      // Lines at scroll 0-0.3, morphing 0.3-0.7, full field 0.7+
-      const morphTarget = smoothstep(0.3, 0.7, scroll);
-      const morph = p.morph.update(morphTarget, 0.12, 0.82);
-
-      // ── Center clearing: visible during hero (scroll 0-0.5), fades as field takes over ──
-      const clearingTarget = 1.0 - smoothstep(0.0, 0.6, scroll);
-      const clearing = p.clearing.update(clearingTarget, 0.08, 0.88);
-
-      // ── Smooth mode transitions via springs ──
-      const sn  = p.n.update(mode.n, 0.08, 0.85);
-      const sm  = p.m.update(mode.m, 0.08, 0.85);
-      const c1r = p.color1r.update(mode.color1[0], 0.04, 0.88);
-      const c1g = p.color1g.update(mode.color1[1], 0.04, 0.88);
-      const c1b = p.color1b.update(mode.color1[2], 0.04, 0.88);
-      const c2r = p.color2r.update(mode.color2[0], 0.04, 0.88);
-      const c2g = p.color2g.update(mode.color2[1], 0.04, 0.88);
-      const c2b = p.color2b.update(mode.color2[2], 0.04, 0.88);
-      const br  = p.bgr.update(mode.bg[0], 0.04, 0.88);
-      const bgv = p.bgg.update(mode.bg[1], 0.04, 0.88);
-      const bb  = p.bgb.update(mode.bg[2], 0.04, 0.88);
-
-      // ── Fade in over first 2s ──
-      const fadeIn = Math.min(elapsed / 2.0, 1.0);
-
-      // ── Update Unified Field ──
-      if (s.fieldMaterial) {
-        const fu = s.fieldMaterial.uniforms;
-        fu.uTime.value = elapsed;
-        fu.uBass.value = bass;
-        fu.uMid.value = effectiveMid;
-        fu.uHigh.value = high;
-        fu.uVolume.value = effectiveVol;
-        fu.uMorph.value = morph;
-        fu.uFadeIn.value = fadeIn;
-        fu.uAudioActive.value = audioReady ? 1.0 : 0.0;
-        fu.uN.value = sn;
-        fu.uM.value = sm;
-        fu.uShapeFn.value = mode.shapeFn;
-        fu.uColor1.value.set(c1r, c1g, c1b);
-        fu.uColor2.value.set(c2r, c2g, c2b);
-        fu.uCenterClearing.value = clearing;
-      }
-
-      // ── Update Ether ──
-      if (s.etherMaterial) {
-        s.etherMaterial.uniforms.uTime.value = elapsed;
-        s.etherMaterial.uniforms.uMorph.value = morph;
-        s.etherMaterial.uniforms.uMid.value = effectiveMid;
-        s.etherMaterial.uniforms.uColor.value.set(c2r, c2g, c2b);
-      }
-
-      // ── Background is transparent (alpha renderer) — mushroom shows through ──
-
-      // ── Camera: straight-on for lines, tilted down for field ──
-      if (s.camera) {
-        s.camera.position.z = 7.0 - morph * 1.5;
-        s.camera.rotation.x = -morph * 0.35;
-      }
-
-      s.renderer.render(s.scene, s.camera);
-      frameId = requestAnimationFrame(animate);
-    };
-
-    frameId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameId);
-  }, [audioReady, getFrequencyData]);
-
-  // Sync modeId to ref
-  useEffect(() => { stateRef.current.modeId = modeId; }, [modeId]);
 
   // Scrolled state for nav
   useEffect(() => {
@@ -718,9 +208,8 @@ export default function V12Page() {
 
   const handleEnableAudio = useCallback(() => {
     startAudio();
-    startAmbient();
     setShowMicPrompt(false);
-  }, [startAudio, startAmbient]);
+  }, [startAudio]);
 
   const handleDismissPrompt = useCallback(() => {
     setShowMicPrompt(false);
@@ -844,8 +333,23 @@ export default function V12Page() {
         )}
       </AnimatePresence>
 
-      {/* ── WebGL Canvas (behind all content, above ambient imagery) ── */}
-      <div ref={canvasContainerRef} className="fixed inset-0 z-[2] pointer-events-none" />
+      {/* ── WebGL Canvas (GPGPU Particles) ── */}
+      <div className="fixed inset-0 z-[2] pointer-events-none">
+        <Canvas
+          dpr={[1, 2]}
+          camera={{ position: [0, 0, 10], fov: 60 }}
+          gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+        >
+          <Suspense fallback={null}>
+            <GPGPUParticles 
+              count={256} // 256x256 = 65,536 particles
+              size={1.5}
+              color1={MODES[modeId].color1}
+              color2={MODES[modeId].color2}
+            />
+          </Suspense>
+        </Canvas>
+      </div>
 
       {/* ── Full-screen mushroom backdrop (BEHIND the WebGL canvas) ── */}
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">

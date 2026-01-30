@@ -97,6 +97,16 @@ export const useAmbientSound = () => {
         }
     }, [initAudio]);
 
+    const stopAmbient = useCallback(() => {
+        if (isPlayingRef.current && masterGainRef.current && audioContextRef.current) {
+            const t = audioContextRef.current.currentTime;
+            masterGainRef.current.gain.cancelScheduledValues(t);
+            masterGainRef.current.gain.setValueAtTime(masterGainRef.current.gain.value, t);
+            masterGainRef.current.gain.linearRampToValueAtTime(0, t + 1.5);
+            isPlayingRef.current = false;
+        }
+    }, []);
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -105,5 +115,5 @@ export const useAmbientSound = () => {
         };
     }, []);
 
-    return { startAmbient };
+    return { startAmbient, stopAmbient };
 };
