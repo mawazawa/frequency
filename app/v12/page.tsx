@@ -785,7 +785,7 @@ export default function V12Page() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.8 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
           >
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -1086,7 +1086,7 @@ export default function V12Page() {
                     <button
                       key={i}
                       onClick={() => handleQuizAnswer(i, opt.weight)}
-                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[56px] sm:min-h-0 hover:bg-white/[0.08] hover:border-white/25 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[56px] sm:min-h-0 hover:bg-white/[0.08] hover:border-white/25 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:scale-[1.01]"
                     >
                       <div className="flex items-center gap-4">
                         <span className="text-2xl sm:text-2xl">{opt.icon}</span>
@@ -1141,7 +1141,7 @@ export default function V12Page() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1.5, duration: 0.8 }}
                 >
-                  <ChevronDown className="w-5 h-5 text-white/25 animate-bounce mx-auto" />
+                  <ChevronDown className="w-5 h-5 text-white/25 animate-gentle-bounce mx-auto" />
                   <span className="text-[9px] uppercase tracking-widest text-white/20 font-cinzel mt-2 block">
                     Scroll to your remedy
                   </span>
@@ -1156,7 +1156,7 @@ export default function V12Page() {
       <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-20%" }} transition={{ duration: 1 }}
         className="relative z-10 w-full min-h-[80vh] flex items-center justify-center py-24 bg-black/30 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-8 tracking-wide">The Sonic Infusion</h2>
+          <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-8 tracking-wide uppercase">The Sonic Infusion</h2>
           <p className="font-playfair text-xl md:text-3xl text-white/80 leading-relaxed italic mb-12">
             &quot;The Mushrooms don&apos;t Work for Us. We Work for Them.&quot;
           </p>
@@ -1232,7 +1232,8 @@ export default function V12Page() {
         </div>
       </section>
 
-      <footer className="relative z-10 py-16 text-center border-t border-white/5">
+      <footer className="relative z-10 py-20 text-center">
+        <div className="w-full h-px bg-white/5 mb-12" />
         <p className="text-[9px] text-gray-600 uppercase tracking-[0.3em]">created for Frequency by Empathy Labs</p>
       </footer>
     </div>
