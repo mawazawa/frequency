@@ -380,7 +380,7 @@ export default function V10Page() {
         let targetBass = 0, targetVoice = 0, targetVol = 0;
         
         if (isListening && analyserRef.current && dataArrayRef.current) {
-            analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+            analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
             const data = dataArrayRef.current;
             const len = data.length;
             

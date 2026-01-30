@@ -3,10 +3,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, Sprout } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+// Duplicate React import removed.
+import Image from 'next/image';
 import * as THREE from 'three';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
+import { useAmbientSound } from '@/hooks/useAmbientSound';
 
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
@@ -174,12 +177,7 @@ const fieldFragmentShader = `
 
 
 // --- CONSTANTS ---
-const INTRO_PHASES = {
-    GOD_IS: 0,
-    MORPHING: 1,
-    LINES: 2,
-    REVEAL: 3
-};
+// INTRO_PHASES removed as unused
 
 // Smoothstep helper (same as GLSL smoothstep)
 const smoothstep = (edge0: number, edge1: number, x: number): number => {
@@ -387,7 +385,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             renderer.dispose();
             if (container) container.innerHTML = '';
         };
-    }, [onScrollRequest]);
+    }); // getAudioData is stable from hook
 
     return <div ref={containerRef} className="fixed inset-0 z-0 bg-black" />;
 };
@@ -518,7 +516,13 @@ const PurchaseWidget = () => {
 export default function V11Page() {
     const { scrollY } = useScroll();
     const [scrolled, setScrolled] = useState(false);
-    const { startAudio, getAudioData } = useMicAudio();
+    const { startAudio, getFrequencyData: getAudioData } = useMicAudio();
+    const { startAmbient } = useAmbientSound();
+    
+    const handleStartExperience = () => {
+        startAudio();
+        startAmbient();
+    };
 
     // Background fade transition (for the white content section)
     const bgOpacity = useTransform(scrollY, [600, 1000], [0, 1]);
@@ -540,22 +544,23 @@ export default function V11Page() {
             <FontStyles />
 
             {/* 3D Cinematic Background (Handles intro + field) */}
-            <div onClick={startAudio} className="absolute inset-0 z-0 cursor-pointer" title="Click to enable audio reaction">
+            <div onClick={handleStartExperience} className="absolute inset-0 z-0 cursor-pointer" title="Click to start the experience">
                 <CinematicIntro onScrollRequest={scrollToProcess} getAudioData={getAudioData} />
             </div>
 
-            {/* Forest Background Layer (Fades in) */}
-            <motion.div
-                style={{ opacity: bgOpacity }}
-                className="fixed inset-0 z-[-1]"
-            >
-                <div className="absolute inset-0 bg-black/60 z-10" /> {/* Dark overlay for "deep dark nature" */}
-                <img
-                    src="/forest-bg.jpg"
-                    alt="Forest Background"
-                    className="w-full h-full object-cover opacity-80"
-                />
-            </motion.div>
+    <motion.div
+        style={{ opacity: bgOpacity }}
+        className="fixed inset-0 z-[-1]"
+    >
+        <div className="absolute inset-0 bg-black/60 z-10" /> {/* Dark overlay for "deep dark nature" */}
+        <Image
+            src="/forest-bg.jpg"
+            alt="Forest Background"
+            fill
+            className="object-cover opacity-80"
+            priority
+        />
+    </motion.div>
 
             {/* White Background Layer for Content (Fades in) - REDUCED OPACITY TO SHOW FOREST */}
             <motion.div

@@ -38,7 +38,7 @@ export const useMicAudio = () => {
     const getFrequencyData = useCallback(() => {
         if (!analyserRef.current || !dataArrayRef.current) return { bass: 0, mid: 0, high: 0 };
 
-        analyserRef.current.getByteFrequencyData(dataArrayRef.current as unknown as Uint8Array);
+        analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
 
         const data = dataArrayRef.current;
         const bufferLength = data.length;
