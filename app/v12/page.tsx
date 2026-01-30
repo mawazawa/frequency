@@ -5,6 +5,7 @@ import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, S
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import * as THREE from 'three';
 import clsx from 'clsx';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
 
@@ -13,9 +14,8 @@ import { useMicAudio } from '@/hooks/useMicAudio';
 // ═══════════════════════════════════════════════════════════════════
 const FontStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@200;300;400&display=swap');
-    .font-cinzel { font-family: 'Cinzel', serif; }
-    .font-playfair { font-family: 'Playfair Display', serif; }
+    .font-cinzel { font-family: var(--font-cinzel), 'Cinzel', serif; }
+    .font-playfair { font-family: var(--font-playfair), 'Playfair Display', serif; }
     .metal-text {
       background-image: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 48%, #475569 50%, #94A3B8 100%);
       -webkit-background-clip: text;
@@ -385,36 +385,34 @@ const GlassButton = ({ onClick, children, className = '', active = false }: {
       className
     )}>
     <div className="absolute inset-[1px] rounded-2xl border border-white/20 pointer-events-none opacity-50" />
-    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC44IiBudW1PY3RhdmVzPSI0IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIi8+PC9zdmc+')]" />
     <div className="relative z-10">{children}</div>
   </button>
 );
 
 const ProductBottle = () => (
   <div className="relative w-full h-[60vh] md:h-[80vh] flex items-center justify-center">
-    <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 1, ease: "easeOut" }}
-      className="relative z-10 w-64 md:w-80 aspect-[3/5] rounded-[40px] shadow-2xl overflow-hidden backdrop-blur-sm border border-white/20"
-      style={{ background: "linear-gradient(135deg, rgba(40,40,40,0.95) 0%, rgba(20,20,20,1) 100%)", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.1)" }}>
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] h-16 bg-[#111] border-b border-white/10 z-20" />
-      <div className="absolute inset-4 top-24 border border-white/10 rounded-[20px] p-6 flex flex-col justify-between">
-        <div>
-          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-mycelium-gold to-transparent opacity-50 mb-4" />
-          <h2 className="text-mycelium-gold font-serif text-3xl text-center tracking-wide">CALM DOSE</h2>
-          <p className="text-white/40 text-[10px] text-center uppercase tracking-[0.2em] mt-2">Functional Mushroom Blend</p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between text-[10px] text-white/30 font-mono border-t border-white/5 pt-2">
-            <span>BATCH: 004</span><span>180MG</span>
-          </div>
-          <div className="w-full h-32 opacity-20 relative overflow-hidden rounded-lg">
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-50" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-mycelium-gold blur-[60px]" />
-          </div>
-        </div>
-      </div>
-      <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
+    {/* Warm ambient glow behind product */}
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full opacity-[0.08]"
+      style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.6) 0%, transparent 70%)' }} />
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 1, ease: "easeOut" }}
+      className="relative z-10"
+    >
+      <Image
+        src="/images/calm-product.jpg"
+        alt="Frequency Calm Dose - Functional Mushroom Blend"
+        width={500}
+        height={500}
+        className="object-contain rounded-2xl"
+        style={{ filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.4)) drop-shadow(0 10px 20px rgba(0,0,0,0.3))' }}
+        priority
+      />
     </motion.div>
-    <div className="absolute bottom-[10%] w-64 h-8 bg-black/20 blur-[20px] rounded-[100%]" />
+    <div className="absolute bottom-[8%] w-72 h-10 bg-black/25 blur-[25px] rounded-[100%]" />
   </div>
 );
 
@@ -488,8 +486,8 @@ export default function V12Page() {
   const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
 
   // Text scroll transforms — fades out and drifts up with parallax
-  const textOpacity = useTransform(scrollY, [0, 250], [1, 0]);
-  const textY = useTransform(scrollY, [0, 600], [0, -180]);
+  const textOpacity = useTransform(scrollY, [0, 200], [1, 0]);
+  const textY = useTransform(scrollY, [0, 400], [0, -180]);
 
   const sceneRef = useRef<{
     renderer?: THREE.WebGLRenderer;
@@ -913,7 +911,7 @@ export default function V12Page() {
       </nav>
 
       {/* ═══ SECTION 1: Hero — Lines morph into Field as you scroll ═══ */}
-      <section className="relative h-[200vh] w-full">
+      <section className="relative h-[160vh] w-full">
         <div className="sticky top-0 h-screen w-full flex items-center justify-center pointer-events-none z-[5]">
           {/* Typography — "God is Frequency" — fades out and drifts up on scroll */}
           <motion.div
@@ -924,7 +922,7 @@ export default function V12Page() {
               <motion.span
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 0.7, y: 0 }}
-                transition={{ delay: 1.0, duration: 1.5, ease: "easeOut" }}
+                transition={{ delay: 0.5, duration: 1.2, ease: "easeOut" }}
                 className="text-4xl md:text-6xl tracking-[0.2em] uppercase text-white font-cinzel block mb-3"
                 style={{ fontWeight: 300 }}
               >
@@ -933,7 +931,7 @@ export default function V12Page() {
               <motion.span
                 initial={{ opacity: 0, y: 30, filter: 'blur(12px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ delay: 2.0, duration: 2.0, ease: "easeOut" }}
+                transition={{ delay: 1.2, duration: 1.5, ease: "easeOut" }}
                 className="font-playfair italic text-7xl md:text-[10rem] leading-none text-white"
                 style={{ textShadow: '0 0 80px rgba(255,255,255,0.15), 0 0 40px rgba(255,255,255,0.1)' }}
               >
@@ -946,7 +944,7 @@ export default function V12Page() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 4.5, duration: 1 }}
+            transition={{ delay: 2.5, duration: 1 }}
             className="absolute bottom-10 flex flex-col items-center gap-2 z-20"
             style={{ opacity: textOpacity } as any}
           >
@@ -960,7 +958,7 @@ export default function V12Page() {
       <section className="relative z-[10] min-h-screen w-full flex flex-col justify-end pb-12 px-6">
         <motion.div style={{ opacity: controlPanelOpacity }} className="max-w-4xl mx-auto w-full">
           <div className="backdrop-blur-2xl bg-black/40 border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-            <div className="absolute inset-0 opacity-[0.02] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+            <div className="absolute inset-0 opacity-[0.02] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC44IiBudW1PY3RhdmVzPSI0IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIi8+PC9zdmc+')]" />
             <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
               <div className="flex flex-wrap justify-center gap-4">
                 {(Object.values(MODES) as (typeof MODES[ModeId])[]).map((m) => (
@@ -986,7 +984,7 @@ export default function V12Page() {
       </section>
 
       {/* ═══ SECTION 2.5: Mushroom Smoke Divider — Ethereal Transition ═══ */}
-      <div className="h-[10vh]" aria-hidden="true" />
+      <div className="h-[4vh]" aria-hidden="true" />
       <motion.section 
         initial={{ opacity: 0 }} 
         whileInView={{ opacity: 1 }} 
@@ -994,13 +992,13 @@ export default function V12Page() {
         transition={{ duration: 1.5, ease: "easeInOut" }}
         className="relative z-10 w-full overflow-hidden"
       >
-        <div className="relative w-full aspect-[16/6] md:aspect-[16/4]">
-          <img 
-            src="/images/mushroom-smoke.jpg" 
-            alt="" 
+        <div className="relative w-full aspect-[16/9] md:aspect-[16/6]">
+          <img
+            src="/images/mushroom-smoke.jpg"
+            alt=""
             loading="lazy"
             decoding="async"
-            className="absolute inset-0 w-full h-full object-cover object-center opacity-50"
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-35"
           />
           {/* Ethereal center glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[80%] rounded-full opacity-20"
@@ -1013,7 +1011,7 @@ export default function V12Page() {
       </motion.section>
 
       {/* ═══ SECTION 3: Find Your Frequency Quiz ═══ */}
-      <div className="h-[12vh]" aria-hidden="true" />
+      <div className="h-[6vh]" aria-hidden="true" />
       <section className="relative z-10 w-full min-h-screen flex items-center justify-center py-24">
         <div className="max-w-2xl mx-auto px-6 w-full">
           <AnimatePresence mode="wait">
@@ -1028,8 +1026,8 @@ export default function V12Page() {
                 className="text-center"
               >
                 {/* Full-width cinematic mushroom hero */}
-                <div className="relative w-screen -mx-6 mb-16 overflow-hidden" style={{ maxWidth: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
-                  <div className="relative w-full aspect-[16/10] md:aspect-[16/7] overflow-hidden">
+                <div className="relative w-screen -mx-6 mb-10 overflow-hidden" style={{ maxWidth: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
+                  <div className="relative w-full aspect-[16/8] md:aspect-[16/6] overflow-hidden">
                     <img 
                       src="/images/mushroom-cluster.jpg" 
                       alt="" 
@@ -1163,7 +1161,7 @@ export default function V12Page() {
       </section>
 
       {/* ═══ SECTION 4: The Sonic Infusion ═══ */}
-      <div className="h-[10vh]" aria-hidden="true" />
+      <div className="h-[4vh]" aria-hidden="true" />
       <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-20%" }} transition={{ duration: 1 }}
         className="relative z-10 w-full min-h-[80vh] flex items-center justify-center py-24 bg-black/30 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -1192,7 +1190,7 @@ export default function V12Page() {
       </motion.section>
 
       {/* ═══ SECTION 5: Product ═══ */}
-      <div className="h-[10vh]" aria-hidden="true" />
+      <div className="h-[4vh]" aria-hidden="true" />
       <section className="relative z-10 w-full min-h-screen">
         <div className="md:grid md:grid-cols-2 min-h-screen">
           <div className="sticky top-0 h-screen hidden md:flex items-center justify-center">
@@ -1201,7 +1199,7 @@ export default function V12Page() {
             <div className="absolute bottom-[15%] left-[15%] w-48 h-48 rounded-full opacity-[0.06]"
               style={{ background: 'radial-gradient(circle, rgba(200,160,100,0.6) 0%, transparent 70%)' }} />
           </div>
-          <div className="md:hidden py-12"><ProductBottle /></div>
+          <div className="md:hidden py-8 px-4"><ProductBottle /></div>
           <div className="px-6 py-24 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
             <div className="flex items-center gap-2 mb-6 text-sm font-medium">
               <div className="flex text-mycelium-gold">{[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}</div>
