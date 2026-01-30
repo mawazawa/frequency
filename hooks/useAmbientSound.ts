@@ -24,16 +24,16 @@ export const useAmbientSound = () => {
         // Oscillator 1 (Base Tone)
         const osc1 = ctx.createOscillator();
         osc1.type = 'sine';
-        osc1.frequency.value = 55.0; // A1 (Deep)
-        
+        osc1.frequency.value = 220.0; // A3 (audible on laptop speakers)
+
         // Oscillator 2 (Detuned for Binaural Beat/Phasing)
         const osc2 = ctx.createOscillator();
         osc2.type = 'sine';
-        osc2.frequency.value = 55.5; // 0.5Hz beat frequency
+        osc2.frequency.value = 220.5; // 0.5Hz beat frequency
 
         // Drone Gain
         const droneGain = ctx.createGain();
-        droneGain.gain.value = 0.15; // Subtle base level
+        droneGain.gain.value = 0.08; // Subtle base level
 
         osc1.connect(droneGain);
         osc2.connect(droneGain);
@@ -65,7 +65,7 @@ export const useAmbientSound = () => {
         // Filter to make it "Deep/Underwater"
         const noiseFilter = ctx.createBiquadFilter();
         noiseFilter.type = 'lowpass';
-        noiseFilter.frequency.value = 120; // Very muffled
+        noiseFilter.frequency.value = 800; // Warm rumble, audible on laptop
         noiseFilter.Q.value = 1;
 
         const noiseGain = ctx.createGain();
@@ -79,12 +79,12 @@ export const useAmbientSound = () => {
         nodesRef.current.push(noiseSource, noiseFilter, noiseGain);
     }, []);
 
-    const startAmbient = useCallback(() => {
+    const startAmbient = useCallback(async () => {
         if (!audioContextRef.current) initAudio();
-        
+
         const ctx = audioContextRef.current;
         if (ctx?.state === 'suspended') {
-            ctx.resume();
+            await ctx.resume();
         }
 
         if (!isPlayingRef.current && masterGainRef.current && ctx) {
@@ -92,16 +92,15 @@ export const useAmbientSound = () => {
             const t = ctx.currentTime;
             masterGainRef.current.gain.cancelScheduledValues(t);
             masterGainRef.current.gain.setValueAtTime(0, t);
-            masterGainRef.current.gain.linearRampToValueAtTime(0.4, t + 5); // 5s faint fade in to 40%
+            masterGainRef.current.gain.linearRampToValueAtTime(0.4, t + 2); // 2s fade in to 40%
             isPlayingRef.current = true;
         }
     }, [initAudio]);
 
     // Cleanup on unmount
     useEffect(() => {
-        const nodes = nodesRef.current;
         return () => {
-            nodes.forEach(node => node.disconnect());
+            nodesRef.current.forEach(node => node.disconnect());
             audioContextRef.current?.close();
         };
     }, []);

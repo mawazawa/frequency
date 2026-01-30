@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
+import { useAmbientSound } from '@/hooks/useAmbientSound';
 
 // ═══════════════════════════════════════════════════════════════════
 // FONTS & STYLES
@@ -484,6 +485,7 @@ export default function V12Page() {
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<ModeId | null>(null);
   const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
+  const { startAmbient } = useAmbientSound();
 
   // Text scroll transforms — fades out and drifts up with parallax
   const textOpacity = useTransform(scrollY, [0, 200], [1, 0]);
@@ -714,10 +716,11 @@ export default function V12Page() {
     return () => window.removeEventListener("scroll", h);
   }, []);
 
-  const handleEnableAudio = useCallback(() => { 
-    startAudio(); 
+  const handleEnableAudio = useCallback(() => {
+    startAudio();
+    startAmbient();
     setShowMicPrompt(false);
-  }, [startAudio]);
+  }, [startAudio, startAmbient]);
 
   const handleDismissPrompt = useCallback(() => {
     setShowMicPrompt(false);
