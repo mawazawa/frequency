@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FlaskConical, Sprout, Wind, Waves, Disc, Sparkles, Zap, Activity, Crown } from "lucide-react";
+import { ArrowRight, FlaskConical, Sprout, Wind, Waves, Disc, Sparkles, Zap, Activity, Crown, Atom } from "lucide-react";
 
 export default function Home() {
   return (
@@ -208,6 +208,26 @@ export default function Home() {
             </div>
             <div className="relative z-10 flex items-center gap-2 text-sm font-medium text-white opacity-80 group-hover:opacity-100 transition-opacity">
               View Recommendation <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+        </Link>
+        {/* Version 12 */}
+        <Link href="/v12" className="group md:col-span-2 lg:col-span-3">
+          <div className="bg-gradient-to-r from-black via-[#0a000f] to-black border border-purple-500/30 p-8 h-80 flex flex-col justify-between transition-all duration-500 hover:border-purple-400 hover:shadow-2xl hover:shadow-purple-500/20 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-orange-500/5" />
+            <div className="flex justify-between items-start relative z-10">
+              <span className="text-xs font-mono border border-purple-400/40 px-2 py-1 rounded-full text-purple-300">V.012 • THE CONVERGENCE</span>
+              <Atom className="w-6 h-6 text-purple-400 group-hover:text-white transition-colors" />
+            </div>
+            <div className="relative z-10 max-w-xl">
+              <h3 className="text-3xl font-serif mb-2 text-white group-hover:translate-x-2 transition-transform duration-300">The Convergence</h3>
+              <p className="text-white/80 text-base leading-relaxed">
+                Cinematic cymatics engine — text morphing, Chladni fields, audio-reactive particles. <strong className="text-purple-300">The full ritual.</strong>
+              </p>
+            </div>
+            <div className="relative z-10 flex items-center gap-2 text-sm font-medium text-white opacity-80 group-hover:opacity-100 transition-opacity">
+              Enter the Field <ArrowRight className="w-4 h-4" />
             </div>
           </div>
         </Link>
