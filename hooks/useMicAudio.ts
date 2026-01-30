@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 
 export const useMicAudio = () => {
     const [isReady, setIsReady] = useState(false);
@@ -6,12 +6,14 @@ export const useMicAudio = () => {
     const analyserRef = useRef<AnalyserNode | null>(null);
     const dataArrayRef = useRef<Uint8Array | null>(null);
     const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
 
     const startAudio = useCallback(async () => {
         if (audioContextRef.current?.state === 'running') return;
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
 
             const win = window as unknown as Window & { webkitAudioContext?: typeof AudioContext };
             const AudioContextClass = window.AudioContext || win.webkitAudioContext;
@@ -33,6 +35,18 @@ export const useMicAudio = () => {
         } catch (err) {
             console.error("Error accessing microphone:", err);
         }
+    }, []);
+
+    const stopAudio = useCallback(() => {
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        sourceRef.current?.disconnect();
+        audioContextRef.current?.close();
+        streamRef.current = null;
+        sourceRef.current = null;
+        audioContextRef.current = null;
+        analyserRef.current = null;
+        dataArrayRef.current = null;
+        setIsReady(false);
     }, []);
 
     const getFrequencyData = useCallback(() => {
@@ -68,5 +82,14 @@ export const useMicAudio = () => {
         };
     }, []);
 
-    return { isReady, startAudio, getFrequencyData };
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            streamRef.current?.getTracks().forEach(t => t.stop());
+            sourceRef.current?.disconnect();
+            audioContextRef.current?.close();
+        };
+    }, []);
+
+    return { isReady, startAudio, stopAudio, getFrequencyData };
 };

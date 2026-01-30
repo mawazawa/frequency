@@ -597,6 +597,11 @@ export default function V12Page() {
     return () => {
       stateRef.current.disposed = true;
       window.removeEventListener('resize', handleResize);
+      fieldGeo.dispose();
+      fieldMat.dispose();
+      etherGeo.dispose();
+      etherMat.dispose();
+      scene.clear();
       renderer.dispose();
       if (container) container.innerHTML = '';
     };

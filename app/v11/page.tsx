@@ -382,6 +382,13 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         return () => {
             window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(frameId);
+            
+            // Dispose Three.js Resources
+            particleGeometry.dispose();
+            particleMaterial.dispose();
+            fieldGeo.dispose();
+            fieldMat.dispose();
+
             renderer.dispose();
             if (container) container.innerHTML = '';
         };
