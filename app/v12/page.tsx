@@ -97,157 +97,17 @@ class Spring {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BREATH LINE LANDSCAPE CONSTANTS
+// UNIFIED SHADER — Single particle system: Lines → Chladni Field
 // ═══════════════════════════════════════════════════════════════════
-const BREATH_LINE_COUNT = 48;          // number of horizontal lines
-const BREATH_POINTS_PER_LINE = 256;    // vertices per line (smoothness)
-const BREATH_WIDTH = 14.0;             // horizontal span in world units
-const BREATH_HEIGHT = 6.0;             // vertical span of all lines
-const BREATH_DEPTH_RANGE = 2.0;        // z-spread for parallax
-
-// ═══════════════════════════════════════════════════════════════════
-// SHADERS — "The Breath" Hero Lines
-// ═══════════════════════════════════════════════════════════════════
-const breathVertexShader = /* glsl */ `
-  uniform float uTime;
-  uniform float uBass;
-  uniform float uMid;
-  uniform float uHigh;
-  uniform float uScroll;       // 0 = hero, 1 = compressed/gone
-  uniform float uFadeIn;       // 0 = invisible, 1 = fully visible
-  uniform float uAudioActive;  // 0 = ambient only, 1 = mic is live
-
-  attribute float aLineIndex;  // which line (0-1 normalized)
-  attribute float aPointT;     // position along line (0-1)
-
-  varying float vAlpha;
-  varying float vDisp;
-
-  // ── Simplex-style noise (2D) ──
-  vec3 mod289v3(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
-  vec2 mod289v2(vec2 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
-  vec3 permute3(vec3 x) { return mod289v3(((x*34.0)+1.0)*x); }
-
-  float snoise2(vec2 v) {
-    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
-                       -0.577350269189626, 0.024390243902439);
-    vec2 i = floor(v + dot(v, C.yy));
-    vec2 x0 = v - i + dot(i, C.xx);
-    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-    vec4 x12 = x0.xyxy + C.xxzz;
-    x12.xy -= i1;
-    i = mod289v2(i);
-    vec3 p = permute3(permute3(i.y + vec3(0.0, i1.y, 1.0))
-                               + i.x + vec3(0.0, i1.x, 1.0));
-    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
-                             dot(x12.zw,x12.zw)), 0.0);
-    m = m*m; m = m*m;
-    vec3 x_  = 2.0 * fract(p * C.www) - 1.0;
-    vec3 h   = abs(x_) - 0.5;
-    vec3 ox  = floor(x_ + 0.5);
-    vec3 a0  = x_ - ox;
-    m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-    vec3 g;
-    g.x = a0.x * x0.x + h.x * x0.y;
-    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-    return 130.0 * dot(m, g);
-  }
-
-  void main() {
-    float x = position.x;
-    float baseY = position.y;
-    float z = position.z;
-
-    float t = uTime;
-
-    // ── Organic terrain shape (always present) ──
-    // Multi-octave noise for the "sleeping body" hills
-    float terrain = 0.0;
-    terrain += snoise2(vec2(aPointT * 2.0 + 0.3, aLineIndex * 3.0)) * 1.2;
-    terrain += snoise2(vec2(aPointT * 4.0 + 1.7, aLineIndex * 5.0 + 0.5)) * 0.5;
-    terrain += snoise2(vec2(aPointT * 8.0 - 2.1, aLineIndex * 8.0 + 1.0)) * 0.2;
-
-    // Shape envelope: taper to 0 at horizontal edges (elliptical body)
-    float edgeFade = 1.0 - pow(abs(aPointT * 2.0 - 1.0), 2.4);
-    // Also taper vertically (top and bottom lines are flatter)
-    float vFade = 1.0 - pow(abs(aLineIndex * 2.0 - 1.0), 2.0);
-    float envelope = edgeFade * vFade;
-
-    terrain *= envelope;
-
-    // ── Ambient breathing (slow sine undulation) ──
-    float breath = sin(t * 0.8 + aPointT * 3.14159 * 2.0) * 0.08
-                 + sin(t * 0.5 + aLineIndex * 6.28) * 0.05;
-    breath *= envelope;
-
-    // ── Audio-reactive ripples ──
-    float dist = length(vec2(aPointT - 0.5, aLineIndex - 0.5)) * 2.0;
-
-    // Bass: large slow waves from center
-    float bassRipple = sin(dist * 6.0 - t * 3.0) * uBass * 0.8;
-    // Voice/mid: faster surface ripples
-    float midRipple = sin(dist * 12.0 - t * 5.0) * uMid * 0.5
-                    + sin(dist * 18.0 - t * 7.0 + 1.0) * uMid * 0.25;
-    // High: fine texture vibration
-    float highRipple = snoise2(vec2(aPointT * 30.0 + t * 3.0, aLineIndex * 20.0)) * uHigh * 0.3;
-
-    float audioDisp = (bassRipple + midRipple + highRipple) * envelope;
-
-    // Total Y displacement
-    float totalDisp = terrain * 0.7 + breath + audioDisp;
-
-    // ── Scroll compression ──
-    // As user scrolls, the landscape flattens and moves up/away
-    float scrollFactor = 1.0 - uScroll;
-    totalDisp *= scrollFactor;
-    // Compress vertical spread
-    float ySpread = mix(0.1, 1.0, scrollFactor);
-
-    vec3 finalPos;
-    finalPos.x = x;
-    finalPos.y = baseY * ySpread + totalDisp;
-    finalPos.z = z;
-
-    // Move the whole form up as it compresses
-    finalPos.y += uScroll * 3.0;
-
-    vDisp = abs(totalDisp);
-    // Alpha: fade at edges, fade with scroll, respect fadeIn
-    vAlpha = envelope * 0.3 + 0.7;
-    vAlpha *= uFadeIn;
-    vAlpha *= scrollFactor;
-    // Boost alpha slightly when audio is active and displacement is high
-    vAlpha += vDisp * 0.3 * uAudioActive;
-    vAlpha = clamp(vAlpha, 0.0, 1.0);
-
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(finalPos, 1.0);
-  }
-`;
-
-const breathFragmentShader = /* glsl */ `
-  varying float vAlpha;
-  varying float vDisp;
-
-  void main() {
-    // Silver-white with slight brightness variation from displacement
-    float brightness = 0.75 + vDisp * 0.5;
-    brightness = min(brightness, 1.0);
-    vec3 color = vec3(brightness, brightness, brightness * 1.02);
-    gl_FragColor = vec4(color, vAlpha * 0.85);
-  }
-`;
-
-// ═══════════════════════════════════════════════════════════════════
-// SHADERS — Chladni Field
-// ═══════════════════════════════════════════════════════════════════
-const fieldVertexShader = /* glsl */ `
+const unifiedVertexShader = /* glsl */ `
   uniform float uTime;
   uniform float uBass;
   uniform float uMid;
   uniform float uHigh;
   uniform float uVolume;
-  uniform float uScroll;
-  uniform float uFieldReveal;
+  uniform float uMorph;        // 0 = lines, 1 = full Chladni field
+  uniform float uFadeIn;       // 0→1 over first 2s
+  uniform float uAudioActive;
   uniform float uN;
   uniform float uM;
   uniform int uShapeFn;
@@ -257,8 +117,13 @@ const fieldVertexShader = /* glsl */ `
   varying float vDisplacement;
   varying vec2 vUv;
   varying float vDist;
+  varying float vMorph;
+  varying float vEnvelope;
 
-  float hash(vec2 p) { return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x)))); }
+  // ── Hash noise ──
+  float hash(vec2 p) {
+    return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x))));
+  }
   float noise(vec2 x) {
     vec2 i = floor(x); vec2 f = fract(x);
     float a = hash(i); float b = hash(i + vec2(1,0));
@@ -267,6 +132,7 @@ const fieldVertexShader = /* glsl */ `
     return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
   }
 
+  // ── Chladni pattern ──
   float chladni(vec2 p, float n, float m, float a, float b) {
     float PI = 3.14159265;
     return a*sin(PI*n*p.x)*sin(PI*m*p.y) + b*sin(PI*m*p.x)*sin(PI*n*p.y);
@@ -274,67 +140,159 @@ const fieldVertexShader = /* glsl */ `
 
   void main() {
     vUv = uv;
-    vec2 pos = uv * 2.0 - 1.0;
+    vMorph = uMorph;
+    vec2 pos = uv * 2.0 - 1.0;  // -1 to 1
     vDist = length(pos);
     float t = uTime;
+
+    // ── Shape envelope (tapers edges for organic form) ──
+    float edgeFadeX = 1.0 - pow(abs(pos.x), 2.4);
+    float edgeFadeY = 1.0 - pow(abs(pos.y), 2.0);
+    float envelope = edgeFadeX * edgeFadeY;
+    vEnvelope = envelope;
+
+    // ════════════════════════════════════════════
+    // LINE DISPLACEMENT (morph = 0)
+    // Terrain hills + breathing + audio ripples
+    // Applied to Y axis for landscape silhouette
+    // ════════════════════════════════════════════
+
+    // Multi-octave terrain (static landscape shape)
+    float terrain = 0.0;
+    terrain += noise(pos * 2.0 + vec2(0.3, 0.0)) * 1.2;
+    terrain += noise(pos * 4.0 + vec2(1.7, 0.5)) * 0.5;
+    terrain += noise(pos * 8.0 + vec2(-2.1, 1.0)) * 0.2;
+    terrain *= envelope;
+
+    // Gentle breathing undulation
+    float breath = sin(t * 0.8 + pos.x * 6.28) * 0.08
+                 + sin(t * 0.5 + pos.y * 6.28) * 0.05;
+    breath *= envelope;
+
+    // Audio-reactive ripples in line mode
+    float dist = length(pos);
+    float bassRipple = sin(dist * 6.0 - t * 3.0) * uBass * 0.8;
+    float midRipple  = sin(dist * 12.0 - t * 5.0) * uMid * 0.5
+                     + sin(dist * 18.0 - t * 7.0 + 1.0) * uMid * 0.25;
+    float highRipple = noise(vec2(pos.x * 30.0 + t * 3.0, pos.y * 20.0)) * uHigh * 0.3;
+    float audioLine = (bassRipple + midRipple + highRipple) * envelope;
+
+    float lineDisp = terrain * 0.7 + breath + audioLine;
+
+    // ════════════════════════════════════════════
+    // FIELD DISPLACEMENT (morph = 1)
+    // Chladni plate with full audio reactivity
+    // Applied to Z axis for 3D plate
+    // ════════════════════════════════════════════
+
     float n = uN + uBass * 2.0;
     float m = uM + uMid * 3.0;
     float chladni1 = chladni(pos, n, m, 1.0, -1.0);
-    float chladni2 = chladni(pos, n+2.0, m+1.0, 0.5, 0.5);
-    float displacement = 0.0;
+    float chladni2 = chladni(pos, n + 2.0, m + 1.0, 0.5, 0.5);
+    float fieldDisp = 0.0;
 
     if (uShapeFn == 0) {
-      displacement = chladni1 * (0.5 + uVolume * 2.5);
-      displacement += chladni2 * uBass * 0.5;
-      displacement *= 1.0 + sin(t * 0.5) * 0.15;
+      // Genesis: warm, organic
+      fieldDisp = chladni1 * (0.5 + uVolume * 2.5);
+      fieldDisp += chladni2 * uBass * 0.5;
+      fieldDisp *= 1.0 + sin(t * 0.5) * 0.15;
     } else if (uShapeFn == 1) {
+      // Revelation: crystalline, geometric
       float crystal = chladni(pos, floor(n), floor(m), 1.0, 1.0);
-      vec2 grid = abs(fract(pos*(3.0+uBass))-0.5);
-      float gridP = 1.0-max(grid.x,grid.y);
-      displacement = mix(crystal, gridP, 0.5)*(0.5+uVolume*3.0);
-      displacement *= cos(t*1.5+vDist*4.0);
-      displacement += uMid*noise(pos*10.0+t)*1.5;
+      vec2 grid = abs(fract(pos * (3.0 + uBass)) - 0.5);
+      float gridP = 1.0 - max(grid.x, grid.y);
+      fieldDisp = mix(crystal, gridP, 0.5) * (0.5 + uVolume * 3.0);
+      fieldDisp *= cos(t * 1.5 + vDist * 4.0);
+      fieldDisp += uMid * noise(pos * 10.0 + t) * 1.5;
     } else {
-      float turb = chladni1 + 0.5*chladni2;
-      float n1 = noise(pos*4.0+t*0.5);
-      displacement = (turb*0.6+n1*0.4)*(0.5+uVolume*4.0);
-      displacement += sin(vDist*8.0-t)*uMid*2.0;
-      displacement += uHigh*noise(pos*20.0+t*2.0)*1.5;
+      // Ascension: turbulent, expansive
+      float turb = chladni1 + 0.5 * chladni2;
+      float n1 = noise(pos * 4.0 + t * 0.5);
+      fieldDisp = (turb * 0.6 + n1 * 0.4) * (0.5 + uVolume * 4.0);
+      fieldDisp += sin(vDist * 8.0 - t) * uMid * 2.0;
+      fieldDisp += uHigh * noise(pos * 20.0 + t * 2.0) * 1.5;
     }
 
-    vec3 newPos = position;
-    newPos.z += displacement;
-    float horizonFactor = pow(uScroll, 2.5);
-    float bandNoise = noise(pos.xy*5.0+t)*0.3*(1.0-horizonFactor);
-    newPos.y *= mix(0.12, 1.0, horizonFactor);
-    newPos.y += bandNoise;
-    newPos.z *= mix(0.5, 1.0, uScroll);
-    vDisplacement = abs(displacement);
+    // ════════════════════════════════════════════
+    // MORPH: blend and position
+    // ════════════════════════════════════════════
 
+    vec3 newPos = position;
+
+    // Y compression: tight bands at morph=0, full spread at morph=1
+    float yScale = mix(0.08, 1.0, uMorph);
+    newPos.y *= yScale;
+
+    // Line displacement → Y (terrain shape, fades out with morph)
+    newPos.y += lineDisp * (1.0 - uMorph);
+
+    // Field displacement → Z (Chladni plate, fades in with morph)
+    newPos.z += fieldDisp * uMorph;
+
+    // Subtle band noise during transition (keeps visual interest)
+    float bandNoise = noise(pos * 5.0 + t) * 0.3 * uMorph * (1.0 - uMorph) * 4.0; // peaks at morph=0.5
+    newPos.y += bandNoise;
+
+    // Track total displacement magnitude for coloring
+    float totalDisp = abs(lineDisp * (1.0 - uMorph)) + abs(fieldDisp * uMorph);
+    vDisplacement = totalDisp;
+
+    // ── Point size ──
     vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
-    float ptSize = (2.0+uMid*4.0+vDisplacement*1.5)*(8.0/-mvPosition.z);
-    gl_PointSize = ptSize;
+    // Lines: small tight points; Field: larger reactive points
+    float lineSize = 1.8 + uMid * 1.0;
+    float fieldSize = 2.0 + uMid * 4.0 + vDisplacement * 1.5;
+    float baseSize = mix(lineSize, fieldSize, uMorph);
+    gl_PointSize = baseSize * (8.0 / -mvPosition.z);
+
+    // Fade in
+    gl_PointSize *= uFadeIn;
+
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
-const fieldFragmentShader = /* glsl */ `
+const unifiedFragmentShader = /* glsl */ `
   uniform vec3 uColor1;
   uniform vec3 uColor2;
-  uniform float uScroll;
   uniform float uMid;
-  uniform float uFieldReveal;
+  uniform float uFadeIn;
+  uniform float uAudioActive;
+
   varying float vDisplacement;
   varying float vDist;
+  varying float vMorph;
+  varying float vEnvelope;
 
   void main() {
-    if (length(gl_PointCoord-0.5)>0.5) discard;
-    vec3 color = mix(uColor1, uColor2, smoothstep(0.0,1.5,vDisplacement));
-    float alpha = 1.0-smoothstep(0.6,1.0,vDist);
-    float glow = 1.0+uMid*1.5;
-    float lineGlow = mix(2.0,1.0,uScroll);
-    alpha *= uFieldReveal;
-    gl_FragColor = vec4(color*glow*lineGlow, alpha);
+    // Circular point shape
+    if (length(gl_PointCoord - 0.5) > 0.5) discard;
+
+    // ── Line color: silver/white with displacement brightness ──
+    float brightness = 0.75 + vDisplacement * 0.5;
+    brightness = min(brightness, 1.0);
+    vec3 lineColor = vec3(brightness, brightness, brightness * 1.02);
+    float lineGlow = 1.8; // bright luminous lines
+
+    // ── Field color: mode-specific with audio glow ──
+    vec3 fieldColor = mix(uColor1, uColor2, smoothstep(0.0, 1.5, vDisplacement));
+    float fieldGlow = 1.0 + uMid * 1.5;
+
+    // ── Blend by morph ──
+    vec3 color = mix(lineColor * lineGlow, fieldColor * fieldGlow, vMorph);
+
+    // ── Alpha ──
+    float edgeAlpha = 1.0 - smoothstep(0.6, 1.0, vDist);
+    // Lines: semi-transparent, slightly boosted by displacement
+    float lineAlpha = (vEnvelope * 0.3 + 0.7) * 0.85;
+    lineAlpha += vDisplacement * 0.3 * uAudioActive;
+    // Field: full opacity with edge falloff
+    float fieldAlpha = 1.0;
+    float alpha = mix(lineAlpha, fieldAlpha, vMorph) * edgeAlpha;
+    alpha *= uFadeIn;
+    alpha = clamp(alpha, 0.0, 1.0);
+
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -342,14 +300,14 @@ const fieldFragmentShader = /* glsl */ `
 // SHADERS — Ether Background Particles
 // ═══════════════════════════════════════════════════════════════════
 const etherVertexShader = /* glsl */ `
-  uniform float uTime; uniform float uScroll; uniform float uMid;
+  uniform float uTime; uniform float uMorph; uniform float uMid;
   attribute vec3 aRandom;
   void main() {
     vec3 pos = position;
     pos.x += sin(uTime*0.5*aRandom.x)*0.5;
     pos.y += cos(uTime*0.3*aRandom.y)*0.5;
     pos.z += uMid*aRandom.z*5.0;
-    pos.y *= mix(0.08, 1.0, pow(uScroll, 2.0));
+    pos.y *= mix(0.08, 1.0, pow(uMorph, 2.0));
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_PointSize = (1.5+aRandom.z+uMid*2.0)*(6.0/-mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
@@ -486,64 +444,6 @@ const PurchaseWidget = () => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// BREATH LINE GEOMETRY BUILDER
-// ═══════════════════════════════════════════════════════════════════
-function buildBreathLines(): { geometry: THREE.BufferGeometry; lineStartIndices: number[] } {
-  // Each line = BREATH_POINTS_PER_LINE vertices
-  // Total vertices = BREATH_LINE_COUNT * BREATH_POINTS_PER_LINE
-  const totalVerts = BREATH_LINE_COUNT * BREATH_POINTS_PER_LINE;
-  const positions = new Float32Array(totalVerts * 3);
-  const lineIndices = new Float32Array(totalVerts);   // aLineIndex: 0-1
-  const pointTs = new Float32Array(totalVerts);        // aPointT: 0-1
-
-  // For LineSegments we need pairs: (p0,p1), (p1,p2), ...
-  // Total segments per line = BREATH_POINTS_PER_LINE - 1
-  // Total indices = BREATH_LINE_COUNT * (BREATH_POINTS_PER_LINE - 1) * 2
-  const segsPerLine = BREATH_POINTS_PER_LINE - 1;
-  const totalIndices = BREATH_LINE_COUNT * segsPerLine * 2;
-  const indices = new Uint32Array(totalIndices);
-
-  const lineStartIndexArray: number[] = [];
-  let idxPtr = 0;
-
-  for (let l = 0; l < BREATH_LINE_COUNT; l++) {
-    const lNorm = l / (BREATH_LINE_COUNT - 1);         // 0→1
-    const baseY = (lNorm - 0.5) * BREATH_HEIGHT;       // centered
-    const z = (Math.random() - 0.5) * BREATH_DEPTH_RANGE; // slight z variation per line
-    const vertOffset = l * BREATH_POINTS_PER_LINE;
-
-    lineStartIndexArray.push(vertOffset);
-
-    for (let p = 0; p < BREATH_POINTS_PER_LINE; p++) {
-      const pNorm = p / (BREATH_POINTS_PER_LINE - 1);  // 0→1
-      const x = (pNorm - 0.5) * BREATH_WIDTH;
-      const vi = vertOffset + p;
-
-      positions[vi * 3]     = x;
-      positions[vi * 3 + 1] = baseY;
-      positions[vi * 3 + 2] = z;
-
-      lineIndices[vi] = lNorm;
-      pointTs[vi]     = pNorm;
-    }
-
-    // Index pairs for this line's segments
-    for (let s = 0; s < segsPerLine; s++) {
-      indices[idxPtr++] = vertOffset + s;
-      indices[idxPtr++] = vertOffset + s + 1;
-    }
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('aLineIndex', new THREE.BufferAttribute(lineIndices, 1));
-  geometry.setAttribute('aPointT', new THREE.BufferAttribute(pointTs, 1));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-
-  return { geometry, lineStartIndices: lineStartIndexArray };
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════
 export default function V12Page() {
@@ -552,17 +452,19 @@ export default function V12Page() {
   const [scrolled, setScrolled] = useState(false);
   const [modeId, setModeId] = useState<ModeId>('genesis');
   const [showMicPrompt, setShowMicPrompt] = useState(true);
-  const [quizStep, setQuizStep] = useState(0); // 0 = not started, 1-3 = questions, 4 = result
+  const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<ModeId | null>(null);
   const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
+
+  // Text scroll transforms — fades out and drifts up with parallax
+  const textOpacity = useTransform(scrollY, [0, 250], [1, 0]);
+  const textY = useTransform(scrollY, [0, 600], [0, -180]);
 
   const sceneRef = useRef<{
     renderer?: THREE.WebGLRenderer;
     scene?: THREE.Scene;
     camera?: THREE.PerspectiveCamera;
-    breathMaterial?: THREE.ShaderMaterial;
-    breathLines?: THREE.LineSegments;
     fieldMaterial?: THREE.ShaderMaterial;
     fieldPoints?: THREE.Points;
     etherMaterial?: THREE.ShaderMaterial;
@@ -571,6 +473,7 @@ export default function V12Page() {
 
   const physicsRef = useRef({
     bass: new Spring(0), mid: new Spring(0), high: new Spring(0), vol: new Spring(0),
+    morph: new Spring(0),
     n: new Spring(MODES.genesis.n), m: new Spring(MODES.genesis.m),
     color1r: new Spring(MODES.genesis.color1[0]), color1g: new Spring(MODES.genesis.color1[1]), color1b: new Spring(MODES.genesis.color1[2]),
     color2r: new Spring(MODES.genesis.color2[0]), color2g: new Spring(MODES.genesis.color2[1]), color2b: new Spring(MODES.genesis.color2[2]),
@@ -597,47 +500,36 @@ export default function V12Page() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    // ── 1. "The Breath" — Line Landscape ──
-    const { geometry: breathGeo } = buildBreathLines();
-    const breathMat = new THREE.ShaderMaterial({
+    // ── UNIFIED PARTICLE SYSTEM ──
+    // Single PlaneGeometry 220×220 that morphs from lines to Chladni field
+    const fieldGeo = new THREE.PlaneGeometry(8, 8, 220, 220);
+    const fieldMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime:        { value: 0 },
         uBass:        { value: 0 },
         uMid:         { value: 0 },
         uHigh:        { value: 0 },
-        uScroll:      { value: 0 },
+        uVolume:      { value: 0 },
+        uMorph:       { value: 0 },
         uFadeIn:      { value: 0 },
         uAudioActive: { value: 0 },
+        uN:           { value: MODES.genesis.n },
+        uM:           { value: MODES.genesis.m },
+        uShapeFn:     { value: 0 },
+        uColor1:      { value: new THREE.Vector3(...MODES.genesis.color1) },
+        uColor2:      { value: new THREE.Vector3(...MODES.genesis.color2) },
       },
-      vertexShader: breathVertexShader,
-      fragmentShader: breathFragmentShader,
+      vertexShader: unifiedVertexShader,
+      fragmentShader: unifiedFragmentShader,
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-    });
-    const breathLines = new THREE.LineSegments(breathGeo, breathMat);
-    scene.add(breathLines);
-
-    // ── 2. Chladni Field ──
-    const fieldGeo = new THREE.PlaneGeometry(8, 8, 220, 220);
-    const fieldMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 }, uBass: { value: 0 }, uMid: { value: 0 }, uHigh: { value: 0 },
-        uVolume: { value: 0 }, uScroll: { value: 0 }, uFieldReveal: { value: 0 },
-        uN: { value: MODES.genesis.n }, uM: { value: MODES.genesis.m },
-        uShapeMix: { value: 0 }, uShapeFn: { value: 0 },
-        uColor1: { value: new THREE.Vector3(...MODES.genesis.color1) },
-        uColor2: { value: new THREE.Vector3(...MODES.genesis.color2) },
-      },
-      vertexShader: fieldVertexShader,
-      fragmentShader: fieldFragmentShader,
-      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const fieldPoints = new THREE.Points(fieldGeo, fieldMat);
     fieldPoints.rotation.x = -0.2;
     scene.add(fieldPoints);
 
-    // ── 3. Ether Background Particles ──
+    // ── Ether Background Particles ──
     const etherCount = 3000;
     const etherPos = new Float32Array(etherCount * 3);
     const etherRnd = new Float32Array(etherCount * 3);
@@ -649,14 +541,20 @@ export default function V12Page() {
     etherGeo.setAttribute('position', new THREE.BufferAttribute(etherPos, 3));
     etherGeo.setAttribute('aRandom', new THREE.BufferAttribute(etherRnd, 3));
     const etherMat = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uScroll: { value: 0 }, uMid: { value: 0 }, uColor: { value: new THREE.Vector3(...MODES.genesis.color2) } },
-      vertexShader: etherVertexShader, fragmentShader: etherFragmentShader,
+      uniforms: {
+        uTime:  { value: 0 },
+        uMorph: { value: 0 },
+        uMid:   { value: 0 },
+        uColor: { value: new THREE.Vector3(...MODES.genesis.color2) },
+      },
+      vertexShader: etherVertexShader,
+      fragmentShader: etherFragmentShader,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const etherPoints = new THREE.Points(etherGeo, etherMat);
     scene.add(etherPoints);
 
-    sceneRef.current = { renderer, scene, camera, breathMaterial: breathMat, breathLines, fieldMaterial: fieldMat, fieldPoints, etherMaterial: etherMat, etherPoints };
+    sceneRef.current = { renderer, scene, camera, fieldMaterial: fieldMat, fieldPoints, etherMaterial: etherMat, etherPoints };
     stateRef.current.startTime = performance.now();
 
     const handleResize = () => {
@@ -703,6 +601,11 @@ export default function V12Page() {
       const effectiveVol = Math.max(vol, ambientVol);
       const effectiveMid = audioReady ? mid : Math.max(mid, ambientMid + 0.05);
 
+      // ── Morph: scroll-driven, spring-smoothed ──
+      // Lines at scroll 0-0.3, morphing 0.3-0.7, full field 0.7+
+      const morphTarget = smoothstep(0.3, 0.7, scroll);
+      const morph = p.morph.update(morphTarget, 0.12, 0.82);
+
       // ── Smooth mode transitions via springs ──
       const sn  = p.n.update(mode.n, 0.08, 0.85);
       const sm  = p.m.update(mode.m, 0.08, 0.85);
@@ -716,30 +619,10 @@ export default function V12Page() {
       const bgv = p.bgg.update(mode.bg[1], 0.04, 0.88);
       const bb  = p.bgb.update(mode.bg[2], 0.04, 0.88);
 
-      // ── Phase logic ──
-      // Breath fade in over first 2s
-      const breathFadeIn = Math.min(elapsed / 2.0, 1.0);
-      // Scroll phases — overlapping crossfade for smooth transition
-      const breathScroll = smoothstep(0.2, 0.8, scroll);       // breath starts compressing earlier
-      const fieldReveal  = smoothstep(0.4, 1.0, scroll);       // field fades in while breath is still fading
-      const fieldScroll  = smoothstep(0.5, 1.5, scroll);       // field horizon unfold
+      // ── Fade in over first 2s ──
+      const fadeIn = Math.min(elapsed / 2.0, 1.0);
 
-      // ── Update Breath Lines ──
-      if (s.breathMaterial) {
-        const bu = s.breathMaterial.uniforms;
-        bu.uTime.value = elapsed;
-        bu.uBass.value = bass;
-        bu.uMid.value = effectiveMid;
-        bu.uHigh.value = high;
-        bu.uScroll.value = breathScroll;
-        bu.uFadeIn.value = breathFadeIn;
-        bu.uAudioActive.value = audioReady ? 1.0 : 0.0;
-      }
-      if (s.breathLines) {
-        s.breathLines.visible = breathScroll < 0.99;
-      }
-
-      // ── Update Field ──
+      // ── Update Unified Field ──
       if (s.fieldMaterial) {
         const fu = s.fieldMaterial.uniforms;
         fu.uTime.value = elapsed;
@@ -747,8 +630,9 @@ export default function V12Page() {
         fu.uMid.value = effectiveMid;
         fu.uHigh.value = high;
         fu.uVolume.value = effectiveVol;
-        fu.uScroll.value = fieldScroll;
-        fu.uFieldReveal.value = fieldReveal;
+        fu.uMorph.value = morph;
+        fu.uFadeIn.value = fadeIn;
+        fu.uAudioActive.value = audioReady ? 1.0 : 0.0;
         fu.uN.value = sn;
         fu.uM.value = sm;
         fu.uShapeFn.value = mode.shapeFn;
@@ -759,22 +643,20 @@ export default function V12Page() {
       // ── Update Ether ──
       if (s.etherMaterial) {
         s.etherMaterial.uniforms.uTime.value = elapsed;
-        s.etherMaterial.uniforms.uScroll.value = fieldScroll;
+        s.etherMaterial.uniforms.uMorph.value = morph;
         s.etherMaterial.uniforms.uMid.value = effectiveMid;
         s.etherMaterial.uniforms.uColor.value.set(c2r, c2g, c2b);
       }
 
-      // ── Background color ──
+      // ── Background color: black during lines, mode bg as field reveals ──
       if (s.scene && s.scene.background instanceof THREE.Color) {
-        // Stay black during breath, transition to mode bg as field reveals
-        const bgMix = fieldReveal;
-        s.scene.background.setRGB(br * bgMix, bgv * bgMix, bb * bgMix);
+        s.scene.background.setRGB(br * morph, bgv * morph, bb * morph);
       }
 
-      // ── Camera ──
+      // ── Camera: straight-on for lines, tilted down for field ──
       if (s.camera) {
-        s.camera.position.z = 7.0 - fieldScroll * 1.5;
-        s.camera.rotation.x = -fieldScroll * 0.35;
+        s.camera.position.z = 7.0 - morph * 1.5;
+        s.camera.rotation.x = -morph * 0.35;
       }
 
       s.renderer.render(s.scene, s.camera);
@@ -837,18 +719,15 @@ export default function V12Page() {
     const nextStep = quizStep + 1;
     
     if (nextStep > quizQuestions.length) {
-      // Tally results — count weight from each answer
       const counts: Record<ModeId, number> = { genesis: 0, revelation: 0, ascension: 0 };
-      // Previous answers
       quizAnswers.forEach((ai, qi) => {
         if (quizQuestions[qi]) counts[quizQuestions[qi].options[ai].weight]++;
       });
-      // Current answer
       counts[weight]++;
       
       const result = (Object.entries(counts) as [ModeId, number][]).sort((a, b) => b[1] - a[1])[0][0];
       setQuizResult(result);
-      setModeId(result); // Morph the field to their frequency
+      setModeId(result);
     }
     setQuizStep(nextStep);
   }, [quizStep, quizAnswers, quizQuestions]);
@@ -875,7 +754,6 @@ export default function V12Page() {
             transition={{ duration: 0.6 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
           >
-            {/* Mushroom imagery behind the prompt */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <img src="/images/mushroom-cluster.jpg" alt="" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] max-w-[600px] opacity-[0.12] object-contain" />
             </div>
@@ -923,10 +801,8 @@ export default function V12Page() {
 
       {/* ── Dark mushroom imagery (ambient background layers) ── */}
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
-        {/* Left edge: plant/moss */}
-        <img src="/images/plant-dark.jpg" alt="" className="absolute left-0 top-0 h-full w-[30vw] object-cover opacity-[0.06] mask-image-gradient-r" 
+        <img src="/images/plant-dark.jpg" alt="" className="absolute left-0 top-0 h-full w-[30vw] object-cover opacity-[0.06]" 
           style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)' }} />
-        {/* Right edge: mushroom smoke (flipped) */}
         <img src="/images/mushroom-smoke.jpg" alt="" className="absolute right-0 top-0 h-full w-[30vw] object-cover opacity-[0.06] scale-x-[-1]"
           style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)' }} />
       </div>
@@ -953,11 +829,14 @@ export default function V12Page() {
         </div>
       </nav>
 
-      {/* ═══ SECTION 1: "The Breath" Hero ═══ */}
+      {/* ═══ SECTION 1: Hero — Lines morph into Field as you scroll ═══ */}
       <section className="relative h-[200vh] w-full">
         <div className="sticky top-0 h-screen w-full flex items-center justify-center pointer-events-none z-[5]">
-          {/* Typography overlay — "God is" fades in first, then "Frequency" drops in with a stagger */}
-          <div className="relative z-10 text-center select-none">
+          {/* Typography — "God is Frequency" — fades out and drifts up on scroll */}
+          <motion.div
+            className="relative z-10 text-center select-none"
+            style={{ opacity: textOpacity, y: textY }}
+          >
             <h1 className="flex flex-col items-center">
               <motion.span
                 initial={{ opacity: 0, y: 15 }}
@@ -976,14 +855,15 @@ export default function V12Page() {
                 Frequency
               </motion.span>
             </h1>
-          </div>
+          </motion.div>
 
-          {/* Scroll hint — no mic button here, the modal handles that */}
+          {/* Scroll hint */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 4.5, duration: 1 }}
             className="absolute bottom-10 flex flex-col items-center gap-2 z-20"
+            style={{ opacity: textOpacity } as any}
           >
             <span className="text-[10px] uppercase tracking-widest text-white/30 font-cinzel">Scroll to Enter the Field</span>
             <ChevronDown className="w-4 h-4 text-white/30 animate-bounce" />
@@ -1020,7 +900,22 @@ export default function V12Page() {
         </div>
       </section>
 
-      {/* ═══ SECTION 2.5: Find Your Frequency Quiz ═══ */}
+      {/* ═══ SECTION 2.5: Mushroom Smoke Divider ═══ */}
+      <section className="relative z-10 w-full overflow-hidden">
+        <div className="relative w-full aspect-[16/6] md:aspect-[16/4]">
+          <img 
+            src="/images/mushroom-smoke.jpg" 
+            alt="" 
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-60"
+          />
+          <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-black to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black to-transparent" />
+          <div className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-black/80 to-transparent" />
+          <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-black/80 to-transparent" />
+        </div>
+      </section>
+
+      {/* ═══ SECTION 3: Find Your Frequency Quiz ═══ */}
       <section className="relative z-10 w-full min-h-screen flex items-center justify-center py-24">
         <div className="max-w-2xl mx-auto px-6 w-full">
           <AnimatePresence mode="wait">
@@ -1037,22 +932,16 @@ export default function V12Page() {
                 {/* Full-width cinematic mushroom hero */}
                 <div className="relative w-screen -mx-6 mb-16 overflow-hidden" style={{ maxWidth: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
                   <div className="relative w-full aspect-[16/10] md:aspect-[16/7] overflow-hidden">
-                    {/* The image — full bleed */}
                     <img 
                       src="/images/mushroom-cluster.jpg" 
                       alt="" 
                       className="absolute inset-0 w-full h-full object-cover object-center"
                     />
-                    {/* Top gradient fade into black */}
                     <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black via-black/60 to-transparent" />
-                    {/* Bottom gradient fade into black */}
                     <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/80 to-transparent" />
-                    {/* Side vignettes */}
                     <div className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-black/60 to-transparent" />
                     <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-black/60 to-transparent" />
-                    {/* Subtle warm glow from behind */}
                     <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[60%] h-[60%] bg-white/[0.04] blur-[100px] rounded-full" />
-                    {/* Content overlay at bottom */}
                     <div className="absolute bottom-0 inset-x-0 pb-12 pt-32 bg-gradient-to-t from-black via-black/70 to-transparent flex flex-col items-center">
                       <h2 className="font-cinzel text-3xl md:text-5xl text-white mb-4 tracking-wide drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]">
                         Find Your Frequency
@@ -1084,7 +973,6 @@ export default function V12Page() {
                 transition={{ duration: 0.5, ease: "easeOut" }}
                 className="text-center"
               >
-                {/* Progress */}
                 <div className="flex items-center justify-center gap-3 mb-12">
                   {quizQuestions.map((_, i) => (
                     <div key={i} className={clsx(
@@ -1173,7 +1061,7 @@ export default function V12Page() {
         </div>
       </section>
 
-      {/* ═══ SECTION 3: The Sonic Infusion ═══ */}
+      {/* ═══ SECTION 4: The Sonic Infusion ═══ */}
       <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-20%" }} transition={{ duration: 1 }}
         className="relative z-10 w-full min-h-[80vh] flex items-center justify-center py-24 bg-black/30 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -1201,10 +1089,19 @@ export default function V12Page() {
         </div>
       </motion.section>
 
-      {/* ═══ SECTION 4: Product ═══ */}
+      {/* ═══ SECTION 5: Product ═══ */}
       <section className="relative z-10 w-full min-h-screen">
         <div className="md:grid md:grid-cols-2 min-h-screen">
-          <div className="sticky top-0 h-screen hidden md:flex items-center justify-center"><ProductBottle /></div>
+          <div className="sticky top-0 h-screen hidden md:flex items-center justify-center">
+            <ProductBottle />
+            {/* Small mushroom image accent near bottle */}
+            <img 
+              src="/images/mushroom-cluster.jpg" 
+              alt="" 
+              className="absolute bottom-[8%] left-[10%] w-32 h-32 object-cover rounded-2xl opacity-[0.15] blur-[1px]"
+              style={{ maskImage: 'radial-gradient(circle, black 40%, transparent 70%)', WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 70%)' }}
+            />
+          </div>
           <div className="md:hidden py-12"><ProductBottle /></div>
           <div className="px-6 py-24 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
             <div className="flex items-center gap-2 mb-6 text-sm font-medium">
