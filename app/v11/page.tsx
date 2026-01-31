@@ -10,7 +10,7 @@ import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
 import { useAmbientSound } from '@/hooks/useAmbientSound';
-import { CurvedTitle } from '@/components/cinematic/CurvedTitle';
+import { titleVertex, titleFragment } from '@/shaders/title/shimmerTitle';
 
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
@@ -364,6 +364,56 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         scene.add(fieldMesh);
 
 
+        // --- 3. 3D Title Setup (Universal Bend) ---
+        // Generate Text Texture
+        const createTextTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2048;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            
+            // Clear (Transparent)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw Text
+            ctx.fillStyle = 'white';
+            ctx.font = '400 180px "Cinzel"'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.letterSpacing = '40px'; // Wide spacing
+            ctx.fillText('FREQUENCY', canvas.width / 2, canvas.height / 2);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.needsUpdate = true;
+            return tex;
+        };
+
+        const titleTex = createTextTexture();
+        
+        const titleGeo = new THREE.PlaneGeometry(14, 3.5, 64, 1); // High segment count for bending
+        const titleMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uTexture: { value: titleTex },
+                uBend: { value: 0.2 }, // The "Universal" Curve amount
+                uOpacity: { value: 0.0 }, // Start hidden
+                uColor: { value: new THREE.Vector3(1, 1, 1) }
+            },
+            vertexShader: titleVertex,
+            fragmentShader: titleFragment,
+            transparent: true,
+            depthWrite: false, // Allow particles to show behind/through
+            side: THREE.DoubleSide
+        });
+        
+        const titleMesh = new THREE.Mesh(titleGeo, titleMat);
+        titleMesh.position.set(0, 0.5, 0); // Center, slightly up
+        scene.add(titleMesh);
+
+
         // --- Animation Logic ---
         let startTime = Date.now();
         let frameId: number;
@@ -383,6 +433,17 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
 
             particleMaterial.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
+
+            // Update Title Uniforms
+            titleMat.uniforms.uTime.value = elapsed;
+            
+            // Reveal Logic for Title (Delayed)
+            if (elapsed > 5.5) {
+                // Fade in over 2 seconds
+                titleMat.uniforms.uOpacity.value = Math.min((elapsed - 5.5) * 0.5, 1.0);
+            } else {
+                titleMat.uniforms.uOpacity.value = 0.0;
+            }
 
             // Audio Uniforms - Faster lerp for responsiveness
             fieldMat.uniforms.uBass.value = THREE.MathUtils.lerp(fieldMat.uniforms.uBass.value, bass, 0.2);
@@ -465,6 +526,11 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             particleMaterial.dispose();
             fieldGeo.dispose();
             fieldMat.dispose();
+
+            // Dispose Title
+            titleGeo.dispose();
+            titleMat.dispose();
+            if (titleTex) titleTex.dispose();
 
             renderer.dispose();
             if (container) container.innerHTML = '';
@@ -662,8 +728,7 @@ export default function V11Page() {
             <section className="relative h-[150vh] w-full pointer-events-none">
                 {/* Sticky Container for the Titles */}
                 <div className="sticky top-0 h-screen w-full flex items-center justify-center">
-                    {/* The Frequency Title (Reveals on scroll) */}
-                    <CurvedTitle />
+                    {/* The Frequency Title (Reveals on scroll) - REPLACED BY 3D VERSION */}
                     
                     {/* Audio Enable Button (Pointer events enabled) */}
                     <div className="absolute top-[60%] pointer-events-auto z-50">
