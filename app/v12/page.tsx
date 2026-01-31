@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
-import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, Sprout, Activity } from 'lucide-react';
+import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, Sprout, Activity, Sparkles } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import clsx from 'clsx';
@@ -230,6 +230,8 @@ export default function V12Page() {
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<ModeId | null>(null);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
   
   // Use Global Audio Context
   const { isReady: audioReady, startAudio } = useAudio();
@@ -256,28 +258,49 @@ export default function V12Page() {
   }, []);
 
   const handleQuizAnswer = useCallback((answerIndex: number, weight: ModeId) => {
+    if (selectedOption !== null) return; // Prevent double clicks
+    
+    setSelectedOption(answerIndex);
     const newAnswers = [...quizAnswers, answerIndex];
     setQuizAnswers(newAnswers);
-    const nextStep = quizStep + 1;
-    
-    if (nextStep > QUIZ_QUESTIONS.length) {
-      const counts: Record<ModeId, number> = { genesis: 0, revelation: 0, ascension: 0 };
-      quizAnswers.forEach((ai, qi) => {
-        if (QUIZ_QUESTIONS[qi]) counts[QUIZ_QUESTIONS[qi].options[ai].weight]++;
-      });
-      counts[weight]++;
+
+    // Delay for visual feedback
+    setTimeout(() => {
+      const nextStep = quizStep + 1;
       
-      const result = (Object.entries(counts) as [ModeId, number][]).sort((a, b) => b[1] - a[1])[0][0];
-      setQuizResult(result);
-      setModeId(result);
-    }
-    setQuizStep(nextStep);
-  }, [quizStep, quizAnswers]);
+      if (nextStep > QUIZ_QUESTIONS.length) {
+        setIsCalculating(true);
+        setSelectedOption(null);
+        setQuizStep(nextStep); // Advance to "post-questions" state
+
+        // Simulate calculation/tuning delay
+        setTimeout(() => {
+          const counts: Record<ModeId, number> = { genesis: 0, revelation: 0, ascension: 0 };
+          newAnswers.forEach((ai, qi) => {
+            if (QUIZ_QUESTIONS[qi]) counts[QUIZ_QUESTIONS[qi].options[ai].weight]++;
+          });
+          // Add current answer (since it's not in state yet fully if we used state, but we used local var)
+          // Actually, we already pushed to newAnswers.
+          
+          // Simple majority
+          const result = (Object.entries(counts) as [ModeId, number][]).sort((a, b) => b[1] - a[1])[0][0];
+          setQuizResult(result);
+          setModeId(result);
+          setIsCalculating(false);
+        }, 2000);
+      } else {
+        setQuizStep(nextStep);
+        setSelectedOption(null);
+      }
+    }, 700); // 700ms delay to see the selection glow
+  }, [quizStep, quizAnswers, selectedOption]);
 
   const startQuiz = useCallback(() => {
     setQuizStep(1);
     setQuizAnswers([]);
     setQuizResult(null);
+    setSelectedOption(null);
+    setIsCalculating(false);
   }, []);
 
   const controlPanelOpacity = useTransform(scrollY, [600, 900], [0, 1]);
@@ -563,9 +586,9 @@ export default function V12Page() {
                 key="quiz-intro"
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
-                exit={{ opacity: 0, y: -20 }}
+                exit={{ opacity: 0, y: -20, filter: 'blur(10px)' }}
                 viewport={{ once: true }}
-                transition={{ duration: 1 }}
+                transition={{ duration: 0.8 }}
                 className="text-center"
               >
                 {/* Full-width cinematic mushroom hero */}
@@ -608,18 +631,24 @@ export default function V12Page() {
             {quizStep >= 1 && quizStep <= QUIZ_QUESTIONS.length && (
               <motion.div
                 key={`quiz-q${quizStep}`}
-                initial={{ opacity: 0, x: 40, scale: 0.98 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: -40, scale: 0.98 }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="text-center"
+                initial={{ opacity: 0, x: 20, filter: 'blur(5px)' }}
+                animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, x: -20, filter: 'blur(5px)' }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className="text-center w-full"
               >
                 <div className="flex items-center justify-center gap-3 mb-12">
                   {QUIZ_QUESTIONS.map((_, i) => (
-                    <div key={i} className={clsx(
-                      "h-[3px] sm:h-[2px] w-14 sm:w-12 rounded-full transition-all duration-500",
-                      i < quizStep ? "bg-white/80" : i === quizStep - 1 ? "bg-white/60" : "bg-white/20 sm:bg-white/15"
-                    )} />
+                    <motion.div 
+                      key={i} 
+                      className="h-[3px] sm:h-[2px] rounded-full"
+                      initial={false}
+                      animate={{
+                        backgroundColor: i < quizStep ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)",
+                        width: i === quizStep - 1 ? 64 : 48
+                      }}
+                      transition={{ duration: 0.5 }}
+                    />
                   ))}
                 </div>
 
@@ -627,61 +656,109 @@ export default function V12Page() {
                   Question {quizStep} of {QUIZ_QUESTIONS.length}
                 </span>
 
-                <h3 className="font-playfair italic text-3xl md:text-4xl text-white mb-14 leading-relaxed tracking-tight">
+                <h3 className="font-playfair italic text-3xl md:text-4xl text-white mb-14 leading-relaxed tracking-tight min-h-[80px] flex items-center justify-center">
                   {QUIZ_QUESTIONS[quizStep - 1].question}
                 </h3>
 
-                <motion.div 
-                  className="flex flex-col gap-4 max-w-md mx-auto"
-                  variants={{
-                    hidden: { opacity: 0 },
-                    visible: { 
-                      opacity: 1, 
-                      transition: { staggerChildren: 0.1, delayChildren: 0.1 }
-                    }
-                  }}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {QUIZ_QUESTIONS[quizStep - 1].options.map((opt, i) => (
-                    <motion.button
-                      key={i}
-                      variants={{
-                        hidden: { opacity: 0, y: 15 },
-                        visible: { 
-                          opacity: 1, 
-                          y: 0, 
-                          transition: { duration: 0.6, ease: TRANSITION_EASE } 
-                        }
-                      }}
-                      onClick={() => handleQuizAnswer(i, opt.weight)}
-                      className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[56px] sm:min-h-0 hover:bg-white/[0.06] hover:border-[#D4AF37]/20 transition-all duration-300 hover:shadow-[0_0_20px_rgba(212,175,55,0.08)] hover:scale-[1.01]"
-                    >
-                      <div className="flex items-center gap-4">
-                        <span className="text-2xl sm:text-2xl">{opt.icon}</span>
-                        <span className="text-sm sm:text-base text-white/80 group-hover:text-white transition-colors font-light">{opt.text}</span>
-                      </div>
-                    </motion.button>
-                  ))}
-                </motion.div>
+                <div className="flex flex-col gap-4 max-w-md mx-auto">
+                  {QUIZ_QUESTIONS[quizStep - 1].options.map((opt, i) => {
+                    const isSelected = selectedOption === i;
+                    const isOtherSelected = selectedOption !== null && selectedOption !== i;
+                    
+                    return (
+                      <motion.button
+                        key={i}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ 
+                          opacity: isOtherSelected ? 0.4 : 1,
+                          y: 0,
+                          scale: isSelected ? 1.02 : 1,
+                          borderColor: isSelected ? "rgba(212,175,55,0.6)" : "rgba(255,255,255,0.1)",
+                          backgroundColor: isSelected ? "rgba(212,175,55,0.1)" : "rgba(255,255,255,0.03)"
+                        }}
+                        transition={{ duration: 0.3 }}
+                        onClick={() => handleQuizAnswer(i, opt.weight)}
+                        disabled={selectedOption !== null}
+                        className={clsx(
+                          "group w-full text-left backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[64px] border relative overflow-hidden transition-all duration-300",
+                          !isSelected && !isOtherSelected && "hover:bg-white/[0.06] hover:border-[#D4AF37]/30 hover:shadow-[0_0_20px_rgba(212,175,55,0.08)]"
+                        )}
+                      >
+                         {isSelected && (
+                          <motion.div
+                            layoutId="selection-glow"
+                            className="absolute inset-0 bg-gradient-to-r from-[#D4AF37]/20 to-transparent opacity-50"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        )}
+                        <div className="flex items-center gap-5 relative z-10">
+                          <span className={clsx("text-2xl transition-transform duration-300", isSelected ? "scale-110" : "group-hover:scale-110")}>{opt.icon}</span>
+                          <span className={clsx("text-sm sm:text-base transition-colors duration-300 font-light", isSelected ? "text-white font-medium" : "text-white/80 group-hover:text-white")}>
+                            {opt.text}
+                          </span>
+                          {isSelected && (
+                            <motion.div 
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className="ml-auto text-[#D4AF37]"
+                            >
+                              <Check className="w-5 h-5" />
+                            </motion.div>
+                          )}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
               </motion.div>
             )}
 
-            {quizStep > QUIZ_QUESTIONS.length && quizResult && (
+            {isCalculating && (
+               <motion.div
+                key="calculating"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+                transition={{ duration: 0.8 }}
+                className="text-center py-20"
+              >
+                 <motion.div 
+                  className="w-24 h-24 mx-auto mb-8 rounded-full border border-white/10 flex items-center justify-center relative"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 10, ease: "linear", repeat: Infinity }}
+                 >
+                    <div className="absolute inset-0 border-t border-white/50 rounded-full animate-spin" style={{ animationDuration: '2s' }} />
+                    <div className="absolute inset-2 border-b border-[#D4AF37]/50 rounded-full animate-spin" style={{ animationDuration: '3s', animationDirection: 'reverse' }} />
+                    <Sparkles className="w-8 h-8 text-white/40 animate-pulse" />
+                 </motion.div>
+                 <motion.h3 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="font-cinzel text-xl text-white tracking-[0.2em] animate-pulse"
+                >
+                   Calibrating...
+                 </motion.h3>
+              </motion.div>
+            )}
+
+            {!isCalculating && quizStep > QUIZ_QUESTIONS.length && quizResult && (
               <motion.div
                 key="quiz-result"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.8, ease: TRANSITION_EASE }}
+                initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                transition={{ duration: 1.2, ease: TRANSITION_EASE }}
                 className="text-center"
               >
                 <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.3, duration: 0.8, type: "spring" }}
-                  className="mb-8"
+                  initial={{ scale: 0, opacity: 0, rotate: -180 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                  transition={{ delay: 0.3, duration: 1.0, type: "spring", bounce: 0.5 }}
+                  className="mb-8 relative inline-block"
                 >
-                  <span className="text-6xl inline-block animate-emoji-bounce">
+                  <div className="absolute inset-0 bg-[#D4AF37]/20 blur-[40px] rounded-full animate-pulse" />
+                  <span className="text-7xl relative z-10">
                     {quizResult === 'genesis' ? '🌿' : quizResult === 'revelation' ? '💎' : '⚡'}
                   </span>
                 </motion.div>
@@ -690,7 +767,7 @@ export default function V12Page() {
                   Your Frequency
                 </span>
 
-                <h3 className="font-cinzel text-5xl md:text-6xl text-white mb-4 tracking-[0.1em]">
+                <h3 className="font-cinzel text-5xl md:text-6xl text-white mb-4 tracking-[0.1em] drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
                   {MODES[quizResult].hz}
                 </h3>
                 <p className="font-playfair italic text-2xl text-white/70 mb-8">
