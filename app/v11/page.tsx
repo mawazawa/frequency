@@ -340,6 +340,59 @@ const lensDistortionShader = {
     `
 };
 
+const godRaysShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        fX: { value: 0.5 },
+        fY: { value: 0.5 }, // Will be updated to 0.5, 0.7 in setup
+        fExposure: { value: 0.6 },
+        fDecay: { value: 0.93 },
+        fDensity: { value: 0.96 },
+        fWeight: { value: 0.4 },
+        fClamp: { value: 1.0 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+    `,
+    fragmentShader: `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float fX;
+        uniform float fY;
+        uniform float fExposure;
+        uniform float fDecay;
+        uniform float fDensity;
+        uniform float fWeight;
+        uniform float fClamp;
+
+        void main() {
+            vec2 deltaTextCoord = vec2(vUv - vec2(fX, fY));
+            deltaTextCoord *= 1.0 /  float(100) * fDensity;
+            vec2 coord = vUv;
+            float illuminationDecay = 1.0;
+            vec4 rayColor = vec4(0.0);
+
+            for(int i=0; i < 100 ; i++) {
+                coord -= deltaTextCoord;
+                vec4 texel = texture2D(tDiffuse, coord);
+                texel *= illuminationDecay * fWeight;
+                rayColor += texel;
+                illuminationDecay *= fDecay;
+            }
+            rayColor *= fExposure;
+            rayColor = clamp(rayColor, 0.0, fClamp);
+            
+            // Additive Blend with Original
+            vec4 original = texture2D(tDiffuse, vUv);
+            gl_FragColor = original + rayColor;
+        }
+    `
+};
+
 
 
 // --- CONSTANTS ---
@@ -534,6 +587,15 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const renderPass = new RenderPass(scene, camera);
         composer.addPass(renderPass);
 
+        const godRaysPass = new ShaderPass(godRaysShader);
+        godRaysPass.uniforms.fX.value = 0.5;
+        godRaysPass.uniforms.fY.value = 0.7; // Top-Center light source
+        godRaysPass.uniforms.fExposure.value = 0.5;
+        godRaysPass.uniforms.fDecay.value = 0.95;
+        godRaysPass.uniforms.fDensity.value = 0.5;
+        godRaysPass.uniforms.fWeight.value = 0.4;
+        composer.addPass(godRaysPass);
+
         const distortPass = new ShaderPass(lensDistortionShader);
         distortPass.uniforms.uDistortion.value = 0.0;
         distortPass.uniforms.uAberration.value = 0.005; // Subtle chromatic aberration
@@ -565,6 +627,16 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
                 0.1
             );
             distortPass.uniforms.uAberration.value = 0.005 + bass * 0.01;
+
+            // God Rays Reactivity
+            godRaysPass.uniforms.fExposure.value = THREE.MathUtils.lerp(
+                godRaysPass.uniforms.fExposure.value,
+                0.5 + bass * 0.5, // Stronger glow on kick
+                0.1
+            );
+            
+            // Subtle shift of light source with mid/voice for ethereal feel
+            godRaysPass.uniforms.fX.value = 0.5 + Math.sin(elapsed * 0.5) * 0.05; 
 
             particleMaterial.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
