@@ -16,6 +16,11 @@ import { Accordion } from '@/components/ui/Accordion';
 import { GPGPUParticles } from '@/components/cymatics/GPGPUParticles';
 
 // ═══════════════════════════════════════════════════════════════════
+// ANIMATION CONSTANTS
+// ═══════════════════════════════════════════════════════════════════
+const TRANSITION_EASE = [0.22, 1, 0.36, 1]; // Custom spring-like easing
+
+// ═══════════════════════════════════════════════════════════════════
 // FONTS & STYLES
 // ═══════════════════════════════════════════════════════════════════
 const FontStyles = () => (
@@ -123,10 +128,10 @@ const ProductBottle = () => (
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full opacity-[0.08]"
       style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.6) 0%, transparent 70%)' }} />
     <motion.div
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 1, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 40, scale: 0.95 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-10%" }}
+      transition={{ duration: 1.2, ease: TRANSITION_EASE }}
       className="relative z-10"
     >
       <Image
@@ -299,7 +304,7 @@ export default function V12Page() {
               initial={{ opacity: 0, y: 30, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
+              transition={{ delay: 0.2, duration: 0.8, ease: TRANSITION_EASE }}
               className="relative z-10 flex flex-col items-center text-center px-4 sm:px-8 max-w-md"
             >
               <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-4 tracking-wide">
@@ -432,18 +437,18 @@ export default function V12Page() {
           >
             <h1 className="flex flex-col items-center">
               <motion.span
-                initial={{ opacity: 0, y: 15 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 0.7, y: 0 }}
-                transition={{ delay: 0.5, duration: 1.2, ease: "easeOut" }}
+                transition={{ delay: 0.3, duration: 1.0, ease: TRANSITION_EASE }}
                 className="text-4xl md:text-6xl tracking-[0.2em] uppercase text-white font-cinzel block mb-3"
                 style={{ fontWeight: 300 }}
               >
                 God is
               </motion.span>
               <motion.span
-                initial={{ opacity: 0, y: 30, filter: 'blur(12px)' }}
+                initial={{ opacity: 0, y: 40, filter: 'blur(12px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ delay: 1.2, duration: 1.5, ease: "easeOut" }}
+                transition={{ delay: 0.6, duration: 1.4, ease: TRANSITION_EASE }}
                 className="font-playfair italic text-5xl sm:text-7xl md:text-[10rem] leading-none text-white"
                 style={{ textShadow: '0 0 80px rgba(255,255,255,0.15), 0 0 40px rgba(255,255,255,0.1)' }}
               >
@@ -501,7 +506,7 @@ export default function V12Page() {
         initial={{ opacity: 0 }} 
         whileInView={{ opacity: 1 }} 
         viewport={{ once: true, margin: "-10%" }} 
-        transition={{ duration: 1.5, ease: "easeInOut" }}
+        transition={{ duration: 1.2, ease: TRANSITION_EASE }}
         className="relative z-10 w-full overflow-hidden"
       >
         <div className="relative w-full aspect-[16/9] md:aspect-[16/6]">
@@ -600,10 +605,29 @@ export default function V12Page() {
                   {quizQuestions[quizStep - 1].question}
                 </h3>
 
-                <div className="flex flex-col gap-4 max-w-md mx-auto">
+                <motion.div 
+                  className="flex flex-col gap-4 max-w-md mx-auto"
+                  variants={{
+                    hidden: { opacity: 0 },
+                    visible: { 
+                      opacity: 1, 
+                      transition: { staggerChildren: 0.1, delayChildren: 0.1 }
+                    }
+                  }}
+                  initial="hidden"
+                  animate="visible"
+                >
                   {quizQuestions[quizStep - 1].options.map((opt, i) => (
-                    <button
+                    <motion.button
                       key={i}
+                      variants={{
+                        hidden: { opacity: 0, y: 15 },
+                        visible: { 
+                          opacity: 1, 
+                          y: 0, 
+                          transition: { duration: 0.6, ease: TRANSITION_EASE } 
+                        }
+                      }}
                       onClick={() => handleQuizAnswer(i, opt.weight)}
                       className="group w-full text-left bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[56px] sm:min-h-0 hover:bg-white/[0.06] hover:border-[#D4AF37]/20 transition-all duration-300 hover:shadow-[0_0_20px_rgba(212,175,55,0.08)] hover:scale-[1.01]"
                     >
@@ -611,9 +635,9 @@ export default function V12Page() {
                         <span className="text-2xl sm:text-2xl">{opt.icon}</span>
                         <span className="text-sm sm:text-base text-white/80 group-hover:text-white transition-colors font-light">{opt.text}</span>
                       </div>
-                    </button>
+                    </motion.button>
                   ))}
-                </div>
+                </motion.div>
               </motion.div>
             )}
 
@@ -622,7 +646,7 @@ export default function V12Page() {
                 key="quiz-result"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 1, ease: "easeOut" }}
+                transition={{ duration: 0.8, ease: TRANSITION_EASE }}
                 className="text-center"
               >
                 <motion.div
@@ -681,23 +705,44 @@ export default function V12Page() {
           <p className="font-playfair text-xl md:text-3xl text-white/80 leading-relaxed italic mb-12">
             &quot;The Mushrooms don&apos;t Work for Us. We Work for Them.&quot;
           </p>
-          <div className="grid md:grid-cols-3 gap-8 text-left">
-            <div className="space-y-3">
+          <motion.div 
+            className="grid md:grid-cols-3 gap-8 text-left"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-10%" }}
+            variants={{
+              hidden: { opacity: 0 },
+              visible: { 
+                opacity: 1, 
+                transition: { staggerChildren: 0.2 } 
+              }
+            }}
+          >
+            <motion.div 
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: TRANSITION_EASE } } }}
+              className="space-y-3"
+            >
               <Waves className="w-8 h-8 text-mycelium-gold" />
               <h3 className="font-serif text-lg text-white">Grown as Medicine</h3>
               <p className="text-sm text-white/60 leading-relaxed">Fungi are sentient beings. We treat them with reverence, growing them in clean, high-vibration spaces.</p>
-            </div>
-            <div className="space-y-3">
+            </motion.div>
+            <motion.div 
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: TRANSITION_EASE } } }}
+              className="space-y-3"
+            >
               <Disc className="w-8 h-8 text-mycelium-gold" />
               <h3 className="font-serif text-lg text-white">432Hz Infusion</h3>
               <p className="text-sm text-white/60 leading-relaxed">Every stage of cultivation is immersed in Solfeggio tones, chants, and nature sounds to harmonize the biological structure.</p>
-            </div>
-            <div className="space-y-3">
+            </motion.div>
+            <motion.div 
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: TRANSITION_EASE } } }}
+              className="space-y-3"
+            >
               <Sprout className="w-8 h-8 text-mycelium-gold" />
               <h3 className="font-serif text-lg text-white">Nature & Nurture</h3>
               <p className="text-sm text-white/60 leading-relaxed">&quot;Same genetics, different frequency = different outcome.&quot; We refine unique strains through our in-house cultivation.</p>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
       </motion.section>
 
