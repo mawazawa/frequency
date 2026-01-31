@@ -267,6 +267,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
 
             ctx.fillStyle = 'white';
             ctx.font = 'bold 80px "Cinzel", serif'; // Use loaded font or fallback
+            ctx.letterSpacing = '20px';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(text, canvas.width / 2, canvas.height / 2);
@@ -279,9 +280,9 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
                 for (let x = 0; x < canvas.width; x += 4) {
                     const index = (y * canvas.width + x) * 4;
                     if (data[index] > 50) { // Threshold
-                        // MODIFIED: Smaller scale (4.0) and shift up (y += 2.5)
-                        const pX = (x / canvas.width - 0.5) * 4.0; 
-                        const pY = (-(y / canvas.height - 0.5) * 6.0) + 2.5; 
+                        // MODIFIED: Wider and shorter footprint (X: 3.0, Y: 1.0)
+                        const pX = (x / canvas.width - 0.5) * 3.0; 
+                        const pY = (-(y / canvas.height - 0.5) * 1.0) + 0.5; 
                         positions.push(pX, pY, 0);
                     }
                 }
