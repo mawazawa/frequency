@@ -200,7 +200,8 @@ const fieldVertexShader = `
     vDisplacement = abs(displacement);
 
     vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
-    gl_PointSize = (uParticleSize + vDisplacement * 2.0) * (5.0 / -mvPosition.z);
+    // MODIFIED: Reduced displacement influence on size (2.0 -> 0.5) for consistent refinement
+    gl_PointSize = (uParticleSize + vDisplacement * 0.5) * (5.0 / -mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -345,9 +346,9 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
                 uVolume: { value: 0.5 }, // Start dimmed
                 uScroll: { value: 0 },
                 uShapeFn: { value: 0 }, // Genesis
-                uParticleSize: { value: 2.5 },
+                uParticleSize: { value: 3.5 },
                 uColor1: { value: new THREE.Vector3(0.0, 0.05, 0.2) }, // Dark Blue
-                uColor2: { value: new THREE.Vector3(0.1, 0.4, 0.9) },  // Bright Blue
+                uColor2: { value: new THREE.Vector3(0.1, 0.2, 0.8) },  // Safe Indigo
                 uOpacity: { value: 0.0 } // Start invisible
             },
             vertexShader: fieldVertexShader,
@@ -436,6 +437,9 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
 
             // Sync with actual scroll for parallax
             fieldMat.uniforms.uScroll.value = scroll;
+            
+            // Gentle Cymatic Rotation
+            fieldMesh.rotation.z = elapsed * 0.05;
 
             renderer.render(scene, camera);
             frameId = requestAnimationFrame(loop);
@@ -645,7 +649,7 @@ export default function V11Page() {
 
                 {/* Center Title (Only visible after intro scroll) */}
                 <div className={clsx("absolute left-1/2 -translate-x-1/2 transition-opacity duration-700", scrolled ? "opacity-100" : "opacity-0")}>
-                    <span className="font-cinzel text-lg tracking-[0.2em] font-bold">FREQUENCY</span>
+                    <span className="font-cinzel text-lg tracking-[0.2em] font-normal" style={{ WebkitTextStroke: '0.5px black' }}>FREQUENCY</span>
                 </div>
 
                 <div className="flex gap-8 items-center">
@@ -663,7 +667,8 @@ export default function V11Page() {
                         whileInView={{ opacity: 1, scale: 1, y: 0 }}
                         viewport={{ margin: "-20% 0px -20% 0px" }}
                         transition={{ delay: 5.5, duration: 1.5, ease: "easeOut" }}
-                        className="text-[8vw] md:text-[10vw] font-sans font-thin shimmer-text tracking-widest z-10 text-center leading-none"
+                        style={{ WebkitTextStroke: '1.5px black' }}
+                        className="text-[8vw] md:text-[10vw] font-cinzel font-normal shimmer-text tracking-widest z-10 text-center leading-none"
                     >
                         FREQUENCY
                     </motion.h1>
