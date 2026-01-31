@@ -3,14 +3,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, Sprout } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
-// Duplicate React import removed.
 import Image from 'next/image';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
 import { useAmbientSound } from '@/hooks/useAmbientSound';
-import { CurvedTitle } from '@/components/cinematic/CurvedTitle';
+import { titleVertex, titleFragment } from '@/shaders/title/shimmerTitle';
 
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
@@ -56,7 +58,7 @@ const FontStyles = () => (
 
 // --- Cinematic Intro Engine ---
 
-// 1. Shaders for the "God Is" -> "Lines" Morph
+// 1. Shaders for the "God Is" -> "Lines" Morph (Advanced Version with Curl Noise)
 const silverParticleVertex = `
   uniform float uTime;
   uniform float uMorph; // 0.0 = Text, 1.0 = Big Bang Lines
@@ -69,6 +71,64 @@ const silverParticleVertex = `
   varying float vAlpha;
   varying float vShimmer;
   
+  // --- Simplex 3D Noise ---
+  vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
+  vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+  float snoise(vec3 v){ 
+    const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+    const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+    vec3 i  = floor(v + dot(v, C.yyy) );
+    vec3 x0 =   v - i + dot(i, C.xxx) ;
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min( g.xyz, l.zxy );
+    vec3 i2 = max( g.xyz, l.zxy );
+    vec3 x1 = x0 - i1 + 1.0 * C.xxx;
+    vec3 x2 = x0 - i2 + 2.0 * C.xxx;
+    vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
+    i = mod(i, 289.0); 
+    vec4 p = permute( permute( permute( 
+               i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+             + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+             + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+    float n_ = 1.0/7.0;
+    vec3  ns = n_ * D.wyz - D.xzx;
+    vec4 j = p - 49.0 * floor(p * ns.z *ns.z);
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_ );
+    vec4 x = x_ *ns.x + ns.yyyy;
+    vec4 y = y_ *ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+    vec4 b0 = vec4( x.xy, y.xy );
+    vec4 b1 = vec4( x.zw, y.zw );
+    vec4 s0 = floor(b0)*2.0 + 1.0;
+    vec4 s1 = floor(b1)*2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+    vec3 p0 = vec3(a0.xy,h.x);
+    vec3 p1 = vec3(a0.zw,h.y);
+    vec3 p2 = vec3(a1.xy,h.z);
+    vec3 p3 = vec3(a1.zw,h.w);
+    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+    p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+    vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+  }
+
+  // --- Curl Noise Field ---
+  vec3 curl(vec3 p) {
+    float e = 0.1;
+    vec3 dx = vec3(e, 0.0, 0.0);
+    vec3 dy = vec3(0.0, e, 0.0);
+    vec3 dz = vec3(0.0, 0.0, e);
+    float p_x = snoise(p + dx) - snoise(p - dx);
+    float p_y = snoise(p + dy) - snoise(p - dy);
+    float p_z = snoise(p + dz) - snoise(p - dz);
+    return vec3(p_y - p_z, p_z - p_x, p_x - p_y) / (2.0 * e);
+  }
+
   // Easing function for explosion
   float easeOutExpo(float x) {
     return x == 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * x);
@@ -79,44 +139,44 @@ const silverParticleVertex = `
     float alpha = 1.0;
 
     // --- BIG BANG SEQUENCE (uMorph 0.0 to 1.0) ---
-    // Morph Progress with easing
     float progress = smoothstep(0.0, 1.0, uMorph);
     
     // EXPLOSION LOGIC ("Big Bang")
-    // Violent expansion at the start of the morph
     float blast = sin(progress * 3.14159) * (1.0 - progress) * 8.0; 
-    blast *= smoothstep(0.0, 0.2, progress); // Only blast at the very beginning
+    blast *= smoothstep(0.0, 0.2, progress); 
     
-    // Random direction for chaos
     vec3 randomDir = normalize(vec3(
         randomOffset - 0.5, 
         sin(randomOffset * 10.0), 
         cos(randomOffset * 20.0)
     ));
 
-    // Interpolate positions
+    // Linear Path Interpolation
     currentPos = mix(position, linePosition, easeOutExpo(progress));
     
-    // Apply Blast
+    // --- ADDING LIQUID JUSTICE (CURL NOISE) ---
+    // Calculate organic flow based on current position and time
+    vec3 flow = curl(currentPos * 0.3 + uTime * 0.1);
+    
+    // Displace based on progress (Peak in middle of flight)
+    float flowInfluence = sin(progress * 3.14159);
+    currentPos += flow * flowInfluence * 4.0;
+
+    // Apply initial Blast
     currentPos += randomDir * blast * 2.0;
 
     // Add noise/vibration to lines state
     if (uMorph > 0.5) {
         float wave = sin(currentPos.x * 2.0 + uTime * 2.0 + randomOffset * 10.0);
-        currentPos.z += wave * 0.1 * uMorph; // Vibrating depth in line mode
+        currentPos.z += wave * 0.1 * uMorph; 
         currentPos.y += cos(currentPos.x * 5.0 + uTime) * 0.02 * uMorph;
     }
 
     vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     
-    // Size attenuation
     gl_PointSize = uParticleSize * (300.0 / -mvPosition.z);
-    
-    // Shimmer effect calculation
     vShimmer = sin(uTime * 3.0 + randomOffset * 20.0);
-    
-    // Alpha fade based on lifecycle
     vAlpha = alpha; 
   }
 `;
@@ -141,7 +201,7 @@ const silverParticleFragment = `
   }
 `;
 
-// 2. V10 Blue Field Shaders (Genesis/Revelation) - slightly optimized for background use
+// 2. V10 Blue Field Shaders (Genesis/Revelation)
 const fieldVertexShader = `
   uniform float uTime;
   uniform float uBass;
@@ -227,11 +287,119 @@ const fieldFragmentShader = `
   }
 `;
 
+const lensDistortionShader = {
+    uniforms: {
+        "tDiffuse": { value: null },
+        "uDistortion": { value: 0.0 },
+        "uAberration": { value: 0.01 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float uDistortion;
+        uniform float uAberration;
+        varying vec2 vUv;
 
-// --- CONSTANTS ---
-// INTRO_PHASES removed as unused
+        vec2 distort(vec2 uv, float k) {
+            vec2 d = uv - 0.5;
+            float r2 = dot(d, d);
+            return uv + d * k * r2;
+        }
 
-// Smoothstep helper (same as GLSL smoothstep)
+        void main() {
+            vec2 distortedUV = distort(vUv, uDistortion);
+            
+            float r = texture2D(tDiffuse, distort(vUv, uDistortion + uAberration)).r;
+            float g = texture2D(tDiffuse, distortedUV).g;
+            float b = texture2D(tDiffuse, distort(vUv, uDistortion - uAberration)).b;
+            
+            float vignette = smoothstep(0.8, 0.4, length(vUv - 0.5));
+            gl_FragColor = vec4(vec3(r, g, b) * vignette, 1.0);
+        }
+    `
+};
+
+const godRaysShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        fX: { value: 0.5 },
+        fY: { value: 0.5 },
+        fExposure: { value: 0.6 },
+        fDecay: { value: 0.93 },
+        fDensity: { value: 0.96 },
+        fWeight: { value: 0.4 },
+        fClamp: { value: 1.0 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+    `,
+    fragmentShader: `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float fX;
+        uniform float fY;
+        uniform float fExposure;
+        uniform float fDecay;
+        uniform float fDensity;
+        uniform float fWeight;
+        uniform float fClamp;
+
+        void main() {
+            vec2 deltaTextCoord = vec2(vUv - vec2(fX, fY));
+            deltaTextCoord *= 1.0 /  float(100) * fDensity;
+            vec2 coord = vUv;
+            float illuminationDecay = 1.0;
+            vec4 FragColor = vec4(0.0);
+
+            for(int i=0; i < 100 ; i++) {
+                coord -= deltaTextCoord;
+                vec4 texel = texture2D(tDiffuse, coord);
+                texel *= illuminationDecay * fWeight;
+                FragColor += texel;
+                illuminationDecay *= fDecay;
+            }
+            FragColor *= fExposure;
+            FragColor = clamp(FragColor, 0.0, fClamp);
+            gl_FragColor = FragColor;
+        }
+    `
+};
+
+const additiveBlendShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        tAdd: { value: null }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform sampler2D tAdd;
+        varying vec2 vUv;
+        void main() {
+            vec4 color = texture2D( tDiffuse, vUv );
+            vec4 add = texture2D( tAdd, vUv );
+            gl_FragColor = color + add;
+        }
+    `
+};
+
+// Smoothstep helper
 const smoothstep = (edge0: number, edge1: number, x: number): number => {
     const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
     return t * t * (3 - 2 * t);
@@ -255,8 +423,40 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
 
+        // --- Post Processing Setup ---
+        const occlusionRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth / 2, window.innerHeight / 2);
+        const occlusionComposer = new EffectComposer(renderer, occlusionRenderTarget);
+        
+        // Occlusion Scene (Black objects on Black background, Light sources are White)
+        const occlusionScene = new THREE.Scene();
+        occlusionScene.background = new THREE.Color(0x000000);
+        
+        // Add "Horizon Line" Light Source
+        const horizonGeo = new THREE.PlaneGeometry(50, 0.05);
+        const horizonMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const horizonMesh = new THREE.Mesh(horizonGeo, horizonMat);
+        horizonMesh.position.set(0, 0, -2); // Behind text
+        occlusionScene.add(horizonMesh);
+        
+        const occlusionRenderPass = new RenderPass(occlusionScene, camera);
+        occlusionComposer.addPass(occlusionRenderPass);
+        
+        const godRaysPass = new ShaderPass(godRaysShader);
+        occlusionComposer.addPass(godRaysPass);
+
+        // Final Composer
+        const finalComposer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        finalComposer.addPass(renderPass);
+        
+        const blendPass = new ShaderPass(additiveBlendShader);
+        blendPass.uniforms.tAdd.value = occlusionRenderTarget.texture;
+        finalComposer.addPass(blendPass);
+
+        const lensPass = new ShaderPass(lensDistortionShader);
+        finalComposer.addPass(lensPass);
+
         // --- 1. "God Is" Particles Setup ---
-        // We generate positions from a canvas
         const generateTextPositions = (text: string) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
@@ -268,7 +468,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 80px "Cinzel", serif'; // Use loaded font or fallback
+            ctx.font = 'bold 80px "Cinzel", serif'; 
             ctx.letterSpacing = '20px';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -278,11 +478,10 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             const data = imageData.data;
             const positions = [];
 
-            for (let y = 0; y < canvas.height; y += 4) { // stride for density
+            for (let y = 0; y < canvas.height; y += 4) { 
                 for (let x = 0; x < canvas.width; x += 4) {
                     const index = (y * canvas.width + x) * 4;
-                    if (data[index] > 50) { // Threshold
-                        // MODIFIED: Wider and shorter footprint (X: 3.0, Y: 1.0)
+                    if (data[index] > 50) { 
                         const pX = (x / canvas.width - 0.5) * 3.0; 
                         const pY = (-(y / canvas.height - 0.5) * 1.0) + 0.5; 
                         positions.push(pX, pY, 0);
@@ -299,11 +498,10 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const linePositions = new Float32Array(count * 3);
         const randomOffsets = new Float32Array(count);
         for (let i = 0; i < count; i++) {
-            // Distribute into parallel lines (horizontal planes)
-            const lineIndex = i % 20; // 20 lines
-            const x = (Math.random() - 0.5) * 20.0; // Wide spread
-            const z = (Math.random() - 0.5) * 5.0; // Depth
-            const y = -2.0 + (lineIndex * 0.2); // Stacked vertically, slightly below center
+            const lineIndex = i % 20; 
+            const x = (Math.random() - 0.5) * 20.0; 
+            const z = (Math.random() - 0.5) * 5.0; 
+            const y = -2.0 + (lineIndex * 0.2); 
 
             linePositions[i * 3] = x;
             linePositions[i * 3 + 1] = y;
@@ -320,10 +518,10 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const particleMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
-                uMorph: { value: -1.0 }, // Start at Line Phase
+                uMorph: { value: -1.0 }, 
                 uScroll: { value: 0 },
-                uParticleSize: { value: 0.04 }, // Reduced for finer particles
-                uColor: { value: new THREE.Color(0xdddddd) }, // Silver/Aluminum
+                uParticleSize: { value: 0.04 }, 
+                uColor: { value: new THREE.Color(0xdddddd) }, 
                 uOpacity: { value: 1.0 },
             },
             vertexShader: silverParticleVertex,
@@ -336,6 +534,22 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
         scene.add(particleSystem);
 
+        // We need a copy of the particles for the occlusion scene that are SOLID WHITE
+        const occParticleMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uMorph: { value: 0.0 }, 
+                uScroll: { value: 0 },
+                uParticleSize: { value: 3.5 }, // Consistent size
+                uColor: { value: new THREE.Color(0xffffff) }, // Pure White
+                uOpacity: { value: 1.0 }, 
+            },
+            vertexShader: silverParticleVertex,
+            fragmentShader: silverParticleFragment,
+            blending: THREE.AdditiveBlending
+        });
+        const occParticleSystem = new THREE.Points(particleGeometry, occParticleMat);
+        occlusionScene.add(occParticleSystem);
 
         // --- 2. Blue Field Setup (Background) ---
         const fieldGeo = new THREE.PlaneGeometry(16, 16, 200, 200);
@@ -344,13 +558,13 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
                 uTime: { value: 0 },
                 uBass: { value: 0.2 },
                 uVoice: { value: 0.2 },
-                uVolume: { value: 0.5 }, // Start dimmed
+                uVolume: { value: 0.5 }, 
                 uScroll: { value: 0 },
-                uShapeFn: { value: 0 }, // Genesis
+                uShapeFn: { value: 0 }, 
                 uParticleSize: { value: 3.5 },
-                uColor1: { value: new THREE.Vector3(0.0, 0.05, 0.2) }, // Dark Blue
-                uColor2: { value: new THREE.Vector3(0.1, 0.2, 0.8) },  // Safe Indigo
-                uOpacity: { value: 0.0 } // Start invisible
+                uColor1: { value: new THREE.Vector3(0.0, 0.05, 0.2) }, 
+                uColor2: { value: new THREE.Vector3(0.1, 0.2, 0.8) },  
+                uOpacity: { value: 0.0 } 
             },
             vertexShader: fieldVertexShader,
             fragmentShader: fieldFragmentShader,
@@ -363,6 +577,45 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         fieldMesh.position.z = -5; // Behind everything
         scene.add(fieldMesh);
 
+        // --- 3. 3D Title Setup (Universal Bend) ---
+        const createTextTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2048;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = '400 180px "Cinzel"'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.letterSpacing = '40px'; 
+            ctx.fillText('FREQUENCY', canvas.width / 2, canvas.height / 2);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.needsUpdate = true;
+            return tex;
+        };
+        const titleTex = createTextTexture();
+        const titleGeo = new THREE.PlaneGeometry(14, 3.5, 64, 1); 
+        const titleMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uTexture: { value: titleTex },
+                uBend: { value: 0.25 }, 
+                uOpacity: { value: 0.0 }, 
+                uColor: { value: new THREE.Vector3(1, 1, 1) }
+            },
+            vertexShader: titleVertex,
+            fragmentShader: titleFragment,
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        const titleMesh = new THREE.Mesh(titleGeo, titleMat);
+        titleMesh.position.set(0, 0.5, 0); 
+        scene.add(titleMesh);
 
         // --- Animation Logic ---
         let startTime = Date.now();
@@ -371,20 +624,19 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const loop = () => {
             const now = Date.now();
             const elapsed = (now - startTime) * 0.001;
-            const scroll = window.scrollY / window.innerHeight; // Normalized scroll 0-1 approx
+            const scroll = window.scrollY / window.innerHeight; 
 
             // Update Uniforms
             const audio = getAudioData();
-            
-            // Raw values for maximum dynamic range
-            // BOOSTED SENSITIVITY
             const bass = Math.min(audio.bass * 3.0, 1.0); 
             const voice = Math.min(audio.mid * 3.0, 1.0);
 
+            // Sync Uniforms across Main and Occlusion
             particleMaterial.uniforms.uTime.value = elapsed;
+            occParticleMat.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
 
-            // Audio Uniforms - Faster lerp for responsiveness
+            // Audio Uniforms
             fieldMat.uniforms.uBass.value = THREE.MathUtils.lerp(fieldMat.uniforms.uBass.value, bass, 0.2);
             fieldMat.uniforms.uVoice.value = THREE.MathUtils.lerp(fieldMat.uniforms.uVoice.value, voice, 0.2);
 
@@ -394,55 +646,62 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             let textOpacity = 0;
             let flash = 0;
 
-            // Timeline:
-            // 0s - 3s: Fade In "God Is"
-            // 3s - 5s: Hold
-            // 5s+: Big Bang (0.0 -> 1.0)
-
             if (elapsed < 3.0) {
                 textOpacity = smoothstep(0.0, 3.0, elapsed);
             } else if (elapsed < 5.0) {
                 textOpacity = 1.0;
             } else {
-                // Big Bang Start
                 const explosionTime = elapsed - 5.0;
-                morphProgress = Math.min(explosionTime * 0.8, 1.0); // 1.25s explosion morph
+                morphProgress = Math.min(explosionTime * 0.8, 1.0); 
                 textOpacity = 1.0;
-                
-                // Flash Effect (Peak at start of explosion)
                 flash = Math.max(0, 1.0 - explosionTime * 0.5); 
-                
-                // Camera drift
                 camera.position.z = 8.0 - morphProgress * 2.0; 
             }
 
-            // Scroll Logic (Overrides/Adds to auto animation)
             if (scroll > 0.1) {
-                morphProgress = 1.0; // Force to lines if scrolling
-
-                // Field Reveal
-                // Reveal starts at scroll 0.2, full by 0.5
+                morphProgress = 1.0; 
                 fieldOpacity = smoothstep(0.1, 0.5, scroll);
-
-                // Tilt camera for 'Horizon' effect
                 camera.rotation.x = -scroll * 0.2;
             }
 
+            // Update main particles
             particleMaterial.uniforms.uMorph.value = morphProgress;
             particleMaterial.uniforms.uOpacity.value = textOpacity;
-            fieldMat.uniforms.uOpacity.value = fieldOpacity;
             
-            // Set React State for Flash Overlay (throttled to avoid render thrashing if needed, but RAF is okay usually)
-            // We use a ref or direct DOM manip for perf usually, but state is okay for simple opacity
-            setFlashOpacity(flash);
+            // Update Occlusion particles (Follow same morph)
+            occParticleMat.uniforms.uMorph.value = morphProgress;
+            occParticleMat.uniforms.uOpacity.value = textOpacity;
 
-            // Sync with actual scroll for parallax
+            fieldMat.uniforms.uOpacity.value = fieldOpacity;
+            setFlashOpacity(flash);
             fieldMat.uniforms.uScroll.value = scroll;
-            
-            // Gentle Cymatic Rotation
             fieldMesh.rotation.z = elapsed * 0.05;
 
-            renderer.render(scene, camera);
+            // Update Title
+            titleMat.uniforms.uTime.value = elapsed;
+            if (elapsed > 5.5) {
+                titleMat.uniforms.uOpacity.value = Math.min((elapsed - 5.5) * 0.5, 1.0);
+            } else {
+                titleMat.uniforms.uOpacity.value = 0.0;
+            }
+
+            // Lens & GodRays Uniforms
+            lensPass.uniforms.uDistortion.value = THREE.MathUtils.lerp(lensPass.uniforms.uDistortion.value, bass * 0.1, 0.1);
+            lensPass.uniforms.uAberration.value = 0.005 + bass * 0.02;
+            
+            // God Rays Reactive Intensity
+            // Sun gets brighter with voice
+            godRaysPass.uniforms.fExposure.value = 0.6 + voice * 0.4;
+            
+            // Move God Ray Center with camera/mouse if desired (static center for now)
+            const sunPos = new THREE.Vector3(0, 0, -2).project(camera);
+            godRaysPass.uniforms.fX.value = (sunPos.x + 1) / 2;
+            godRaysPass.uniforms.fY.value = (sunPos.y + 1) / 2;
+
+            // Render
+            occlusionComposer.render();
+            finalComposer.render();
+            
             frameId = requestAnimationFrame(loop);
         };
 
@@ -453,6 +712,8 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            occlusionComposer.setSize(window.innerWidth / 2, window.innerHeight / 2);
+            finalComposer.setSize(window.innerWidth, window.innerHeight);
         };
         window.addEventListener('resize', handleResize);
 
@@ -465,6 +726,9 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             particleMaterial.dispose();
             fieldGeo.dispose();
             fieldMat.dispose();
+            titleGeo.dispose();
+            titleMat.dispose();
+            if (titleTex) titleTex.dispose();
 
             renderer.dispose();
             if (container) container.innerHTML = '';
@@ -618,19 +882,19 @@ export default function V11Page() {
                 <CinematicIntro onScrollRequest={scrollToProcess} getAudioData={getAudioData} />
             </div>
 
-    <motion.div
-        style={{ opacity: bgOpacity }}
-        className="fixed inset-0 z-[-1]"
-    >
-        <div className="absolute inset-0 bg-black/60 z-10" /> {/* Dark overlay for "deep dark nature" */}
-        <Image
-            src="/forest-bg.jpg"
-            alt="Forest Background"
-            fill
-            className="object-cover opacity-80"
-            priority
-        />
-    </motion.div>
+            <motion.div
+                style={{ opacity: bgOpacity }}
+                className="fixed inset-0 z-[-1]"
+            >
+                <div className="absolute inset-0 bg-black/60 z-10" /> {/* Dark overlay for "deep dark nature" */}
+                <Image
+                    src="/forest-bg.jpg"
+                    alt="Forest Background"
+                    fill
+                    className="object-cover opacity-80"
+                    priority
+                />
+            </motion.div>
 
             {/* White Background Layer for Content (Fades in) - REDUCED OPACITY TO SHOW FOREST */}
             <motion.div
@@ -660,12 +924,10 @@ export default function V11Page() {
 
             {/* Section 1: Cinematic Intro Spacer & Title Reveal */}
             <section className="relative h-[150vh] w-full pointer-events-none">
-                {/* Sticky Container for the Titles */}
+                {/* 3D Title is now in CinematicIntro Canvas */}
+                
+                {/* Audio Enable Button (Pointer events enabled) */}
                 <div className="sticky top-0 h-screen w-full flex items-center justify-center">
-                    {/* The Frequency Title (Reveals on scroll) */}
-                    <CurvedTitle />
-                    
-                    {/* Audio Enable Button (Pointer events enabled) */}
                     <div className="absolute top-[60%] pointer-events-auto z-50">
                          <button 
                             onClick={(e) => { e.stopPropagation(); handleStartExperience(); }}
@@ -675,7 +937,6 @@ export default function V11Page() {
                         </button>
                     </div>
                 </div>
-
             </section>
 
             {/* Section 2: The Sonic Infusion (Process) */}
