@@ -197,7 +197,7 @@ const PurchaseWidget = () => {
         <button 
           onClick={() => setSubType('sub')} 
           className={clsx(
-            "w-full flex items-center justify-between px-5 py-4 rounded-lg transition-all duration-300 relative group",
+            "w-full flex items-center justify-between px-5 py-4 rounded-lg transition-all duration-300 relative group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37]",
             subType==='sub' ? "bg-white/10 shadow-inner border border-white/5" : "hover:bg-white/5 border border-transparent"
           )}
         >
@@ -226,7 +226,7 @@ const PurchaseWidget = () => {
         <button 
           onClick={() => setSubType('once')} 
           className={clsx(
-            "w-full flex items-center justify-between px-5 py-4 rounded-lg transition-all duration-300 mt-1 relative group",
+            "w-full flex items-center justify-between px-5 py-4 rounded-lg transition-all duration-300 mt-1 relative group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37]",
             subType==='once' ? "bg-white/10 shadow-inner border border-white/5" : "hover:bg-white/5 border border-transparent"
           )}
         >
@@ -248,7 +248,7 @@ const PurchaseWidget = () => {
         </button>
       </div>
 
-      <button className="group relative w-full bg-[#FAFAFA] text-black py-5 px-8 rounded-full font-medium hover:bg-white transition-all duration-300 flex items-center justify-between shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_50px_rgba(255,255,255,0.2)] transform hover:-translate-y-0.5 overflow-hidden">
+      <button className="group relative w-full bg-[#FAFAFA] text-black py-5 px-8 rounded-full font-medium hover:bg-white transition-all duration-300 flex items-center justify-between shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_50px_rgba(255,255,255,0.2)] transform hover:-translate-y-0.5 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-black">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
         <span className="relative z-10 text-lg tracking-wide">Add to Cart</span>
         <span className="relative z-10 flex items-center gap-3 font-serif text-lg">
@@ -405,7 +405,8 @@ export default function V12Page() {
 
               <button
                 onClick={handleEnableAudio}
-                className="group relative w-28 h-28 rounded-full border-2 border-white/30 bg-white/5 backdrop-blur-xl flex items-center justify-center hover:border-white/60 hover:bg-white/10 transition-all duration-500 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)] mb-6"
+                className="group relative w-28 h-28 rounded-full border-2 border-white/30 bg-white/5 backdrop-blur-xl flex items-center justify-center hover:border-white/60 hover:bg-white/10 transition-all duration-500 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)] mb-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                aria-label="Enable Audio Experience"
               >
                 <div className="absolute inset-0 rounded-full border border-white/10 animate-ping opacity-20" />
                 <div className="flex flex-col items-center gap-2">
@@ -418,7 +419,7 @@ export default function V12Page() {
 
               <button
                 onClick={handleDismissPrompt}
-                className="text-white/30 hover:text-white/60 text-xs uppercase tracking-[0.2em] transition-colors"
+                className="text-white/50 hover:text-white/80 text-xs uppercase tracking-[0.2em] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] rounded-sm p-1"
               >
                 Continue without audio →
               </button>
@@ -513,15 +514,22 @@ export default function V12Page() {
         "fixed top-0 left-0 w-full z-50 transition-all duration-500 flex justify-between items-center px-6 md:px-12",
         scrolled ? "bg-black/50 backdrop-blur-md border-b border-white/10 py-4" : "bg-transparent py-6"
       )}>
-        <Link href="/" className="hover:text-white/70 transition-colors"><Menu className="w-6 h-6" /></Link>
+        <Link href="/" className="hover:text-white/70 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] rounded-sm p-1" aria-label="Main Menu"><Menu className="w-6 h-6" /></Link>
         <div className={clsx("absolute left-1/2 -translate-x-1/2 transition-opacity duration-700", scrolled ? "opacity-100" : "opacity-0")}>
           <span className="font-cinzel text-lg tracking-[0.25em] font-medium text-white/90">FREQUENCY</span>
         </div>
         <div className="flex gap-8 items-center">
-          <button onClick={handleEnableAudio} className="relative" title="Enable microphone">
+          <button 
+            onClick={handleEnableAudio} 
+            className="relative focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] rounded-full p-1" 
+            title="Enable microphone"
+            aria-label="Enable microphone"
+          >
             <WaveIcon active={audioReady} />
           </button>
-          <ShoppingBag className="w-5 h-5 hover:text-mycelium-gold transition-colors cursor-pointer" />
+          <button className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] rounded-sm p-1" aria-label="Cart">
+            <ShoppingBag className="w-5 h-5 hover:text-mycelium-gold transition-colors cursor-pointer" />
+          </button>
         </div>
       </nav>
 
@@ -645,7 +653,7 @@ export default function V12Page() {
                   <div className="relative w-full aspect-[16/8] md:aspect-[16/6] overflow-hidden">
                     <Image
                       src="/images/mushroom-cluster.jpg"
-                      alt=""
+                      alt="Ethereal mushroom cluster glowing in a dark void"
                       fill
                       className="object-cover object-center"
                       sizes="100vw"
@@ -664,7 +672,7 @@ export default function V12Page() {
                       </p>
                       <button
                         onClick={startQuiz}
-                        className="group w-full sm:w-auto bg-white/5 border border-white/25 backdrop-blur-xl text-white px-10 py-4 rounded-full font-medium hover:bg-white/10 hover:border-white/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+                        className="group w-full sm:w-auto bg-white/5 border border-white/25 backdrop-blur-xl text-white px-10 py-4 rounded-full font-medium hover:bg-white/10 hover:border-white/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                       >
                         <span className="flex items-center justify-center gap-3">
                           Begin the Ritual
@@ -701,7 +709,7 @@ export default function V12Page() {
                   ))}
                 </div>
 
-                <span className="text-xs uppercase tracking-[0.3em] text-white/40 font-cinzel block mb-8">
+                <span className="text-xs uppercase tracking-[0.3em] text-white/50 font-cinzel block mb-8">
                   Question {quizStep} of {QUIZ_QUESTIONS.length}
                 </span>
 
@@ -729,7 +737,7 @@ export default function V12Page() {
                         onClick={() => handleQuizAnswer(i, opt.weight)}
                         disabled={selectedOption !== null}
                         className={clsx(
-                          "group w-full text-left backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[64px] border relative overflow-hidden transition-all duration-300",
+                          "group w-full text-left backdrop-blur-xl rounded-2xl px-6 py-5 min-h-[64px] border relative overflow-hidden transition-all duration-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-black",
                           !isSelected && !isOtherSelected && "hover:bg-white/[0.06] hover:border-[#D4AF37]/30 hover:shadow-[0_0_20px_rgba(212,175,55,0.08)]"
                         )}
                       >
@@ -971,9 +979,27 @@ export default function V12Page() {
         </div>
       </section>
 
-      <footer className="relative z-10 py-20 text-center">
-        <div className="w-full h-px bg-white/5 mb-12" />
-        <p className="text-[9px] text-white/30 uppercase tracking-[0.3em]">created for Frequency by Empathy Labs</p>
+      <footer className="relative z-10 py-16 md:py-24 border-t border-white/5 bg-black text-center">
+        <div className="max-w-4xl mx-auto px-6 flex flex-col items-center gap-8">
+          <div className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity duration-300">
+             <span className="font-cinzel text-lg tracking-[0.2em] text-white">FREQUENCY</span>
+          </div>
+          
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 text-xs md:text-sm font-light text-white/60">
+            <Link href="#" className="hover:text-[#D4AF37] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] rounded-sm px-1">Privacy Policy</Link>
+            <Link href="#" className="hover:text-[#D4AF37] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] rounded-sm px-1">Terms of Service</Link>
+            <Link href="#" className="hover:text-[#D4AF37] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] rounded-sm px-1">Contact Us</Link>
+          </div>
+
+          <div className="flex flex-col gap-4 mt-4">
+            <p className="text-xs text-[#D4AF37]/60 font-serif italic">
+              © 2026 Frequency. All rights reserved.
+            </p>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/30">
+              Designed by <span className="text-white/50">Empathy Labs</span>
+            </p>
+          </div>
+        </div>
       </footer>
     </div>
   );
