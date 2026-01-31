@@ -6,15 +6,11 @@ import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 // Duplicate React import removed.
 import Image from 'next/image';
 import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
 import { useAmbientSound } from '@/hooks/useAmbientSound';
 import { CurvedTitle } from '@/components/cinematic/CurvedTitle';
-import { titleVertex, titleFragment } from '@/shaders/title/shimmerTitle';
 
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
@@ -57,6 +53,185 @@ const FontStyles = () => (
     }
   `}</style>
 );
+
+// --- Cinematic Intro Engine ---
+
+// 1. Shaders for the "God Is" -> "Lines" Morph
+const silverParticleVertex = `
+  uniform float uTime;
+  uniform float uMorph; // 0.0 = Text, 1.0 = Big Bang Lines
+  uniform float uScroll;
+  uniform float uParticleSize;
+  
+  attribute vec3 linePosition; // Target position for lines state
+  attribute float randomOffset;
+  
+  varying float vAlpha;
+  varying float vShimmer;
+  
+  // Easing function for explosion
+  float easeOutExpo(float x) {
+    return x == 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * x);
+  }
+
+  void main() {
+    vec3 currentPos = position;
+    float alpha = 1.0;
+
+    // --- BIG BANG SEQUENCE (uMorph 0.0 to 1.0) ---
+    // Morph Progress with easing
+    float progress = smoothstep(0.0, 1.0, uMorph);
+    
+    // EXPLOSION LOGIC ("Big Bang")
+    // Violent expansion at the start of the morph
+    float blast = sin(progress * 3.14159) * (1.0 - progress) * 8.0; 
+    blast *= smoothstep(0.0, 0.2, progress); // Only blast at the very beginning
+    
+    // Random direction for chaos
+    vec3 randomDir = normalize(vec3(
+        randomOffset - 0.5, 
+        sin(randomOffset * 10.0), 
+        cos(randomOffset * 20.0)
+    ));
+
+    // Interpolate positions
+    currentPos = mix(position, linePosition, easeOutExpo(progress));
+    
+    // Apply Blast
+    currentPos += randomDir * blast * 2.0;
+
+    // Add noise/vibration to lines state
+    if (uMorph > 0.5) {
+        float wave = sin(currentPos.x * 2.0 + uTime * 2.0 + randomOffset * 10.0);
+        currentPos.z += wave * 0.1 * uMorph; // Vibrating depth in line mode
+        currentPos.y += cos(currentPos.x * 5.0 + uTime) * 0.02 * uMorph;
+    }
+
+    vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    
+    // Size attenuation
+    gl_PointSize = uParticleSize * (300.0 / -mvPosition.z);
+    
+    // Shimmer effect calculation
+    vShimmer = sin(uTime * 3.0 + randomOffset * 20.0);
+    
+    // Alpha fade based on lifecycle
+    vAlpha = alpha; 
+  }
+`;
+
+const silverParticleFragment = `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  
+  varying float vAlpha;
+  varying float vShimmer;
+  
+  void main() {
+    // Circle shape
+    if(length(gl_PointCoord - 0.5) > 0.5) discard;
+    
+    // Aluminum / Silver Shimmer
+    // Base is white/silver, shimmer adds brightness
+    float brightness = 0.8 + 0.4 * vShimmer;
+    vec3 finalColor = uColor * brightness;
+    
+    gl_FragColor = vec4(finalColor, uOpacity * vAlpha);
+  }
+`;
+
+// 2. V10 Blue Field Shaders (Genesis/Revelation) - slightly optimized for background use
+const fieldVertexShader = `
+  uniform float uTime;
+  uniform float uBass;
+  uniform float uVoice;
+  uniform float uVolume; // Master volume for visual intensity
+  uniform float uScroll; // Controls the "Horizon" bend
+  uniform int uShapeFn;  // 0:Genesis, 1:Revelation, 2:Ascension
+  uniform float uParticleSize;
+  
+  varying float vDisplacement;
+  varying float vDist; // Distance from center for fades
+
+  // Simple Noise
+  float hash(vec2 p) { return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x)))); }
+  float noise(vec2 x) {
+    vec2 i = floor(x);
+    vec2 f = fract(x);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+  }
+
+  void main() {
+    vec2 pos = uv * 2.0 - 1.0; // Normalised Coordinates -1 to 1
+    vDist = length(pos);
+    
+    float PI = 3.14159;
+    float displacement = 0.0;
+    float t = uTime * 0.5;
+
+    // --- Shape Logic ---
+    if (uShapeFn == 0) { // Genesis (Smooth Waves)
+        // INCREASED REACTIVITY:
+        // Base frequency 3.0, plus up to 8.0 from bass/voice
+        float n = 3.0 + uBass * 8.0; 
+        float m = 3.0 + uVoice * 8.0; 
+        float wave = cos(n * pos.x * PI) * cos(m * pos.y * PI) - cos(m * pos.x * PI) * cos(n * pos.y * PI);
+        
+        // Amplitude modulation: Volume + Bass kick
+        displacement = wave * (uVolume * (1.0 + uBass * 3.0));
+    } 
+    else if (uShapeFn == 1) { // Revelation (Geometric/Crystalline)
+        vec2 grid = abs(fract(pos * (4.0 + uBass * 4.0)) - 0.5); // Bass changes grid density
+        displacement = (1.0 - max(grid.x, grid.y)) * (uVolume * 3.0);
+        displacement *= cos(t * 1.5 + length(pos) * (4.0 + uVoice * 10.0));
+    } 
+
+    vec3 newPos = position;
+    newPos.z += displacement * 1.5;
+
+    // Scroll Transition: The "Field" is revealed behind the lines
+    // We want it to curve up from the deep
+    
+    vDisplacement = abs(displacement);
+
+    vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
+    // MODIFIED: Reduced displacement influence on size (2.0 -> 0.5) for consistent refinement
+    gl_PointSize = (uParticleSize + vDisplacement * 0.5) * (5.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+const fieldFragmentShader = `
+  uniform vec3 uColor1;
+  uniform vec3 uColor2;
+  uniform float uOpacity; 
+  
+  varying float vDisplacement;
+  varying float vDist;
+
+  void main() {
+    if(length(gl_PointCoord - 0.5) > 0.5) discard;
+
+    vec3 color = mix(uColor1, uColor2, smoothstep(0.0, 2.0, vDisplacement));
+    
+    // Circular vignette fade
+    float alpha = (1.0 - smoothstep(0.4, 1.0, vDist)) * uOpacity;
+    
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+
+// --- CONSTANTS ---
+// INTRO_PHASES removed as unused
+
+// Smoothstep helper (same as GLSL smoothstep)
 const smoothstep = (edge0: number, edge1: number, x: number): number => {
     const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
     return t * t * (3 - 2 * t);
@@ -79,56 +254,6 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
-
-        // --- Post Processing Setup ---
-        const occlusionRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth / 2, window.innerHeight / 2);
-        const occlusionComposer = new EffectComposer(renderer, occlusionRenderTarget);
-        
-        // Occlusion Scene (Black objects on Black background, Light sources are White)
-        const occlusionScene = new THREE.Scene();
-        occlusionScene.background = new THREE.Color(0x000000);
-        
-        // Add "Horizon Line" Light Source
-        const horizonGeo = new THREE.PlaneGeometry(50, 0.05);
-        const horizonMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const horizonMesh = new THREE.Mesh(horizonGeo, horizonMat);
-        horizonMesh.position.set(0, 0, -2); // Behind text
-        occlusionScene.add(horizonMesh);
-        
-        // We need a copy of the particles for the occlusion scene that are SOLID WHITE
-        const occParticleMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uMorph: { value: 0.0 }, 
-                uScroll: { value: 0 },
-                uParticleSize: { value: 3.5 }, // Consistent size
-                uColor: { value: new THREE.Color(0xffffff) }, // Pure White
-                uOpacity: { value: 1.0 }, 
-            },
-            vertexShader: silverParticleVertex,
-            fragmentShader: silverParticleFragment,
-            blending: THREE.AdditiveBlending
-        });
-        const occParticleSystem = new THREE.Points(particleGeometry, occParticleMat);
-        occlusionScene.add(occParticleSystem);
-
-        const occlusionRenderPass = new RenderPass(occlusionScene, camera);
-        occlusionComposer.addPass(occlusionRenderPass);
-        
-        const godRaysPass = new ShaderPass(godRaysShader);
-        occlusionComposer.addPass(godRaysPass);
-
-        // Final Composer
-        const finalComposer = new EffectComposer(renderer);
-        const renderPass = new RenderPass(scene, camera);
-        finalComposer.addPass(renderPass);
-        
-        const blendPass = new ShaderPass(additiveBlendShader);
-        blendPass.uniforms.tAdd.value = occlusionRenderTarget.texture;
-        finalComposer.addPass(blendPass);
-
-        const lensPass = new ShaderPass(lensDistortionShader);
-        finalComposer.addPass(lensPass);
 
         // --- 1. "God Is" Particles Setup ---
         // We generate positions from a canvas
@@ -238,45 +363,6 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         fieldMesh.position.z = -5; // Behind everything
         scene.add(fieldMesh);
 
-        // --- 3. 3D Title Setup (Universal Bend) ---
-        const createTextTexture = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 2048;
-            canvas.height = 512;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return null;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = 'white';
-            ctx.font = '400 180px "Cinzel"'; 
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.letterSpacing = '40px'; 
-            ctx.fillText('FREQUENCY', canvas.width / 2, canvas.height / 2);
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.minFilter = THREE.LinearFilter;
-            tex.magFilter = THREE.LinearFilter;
-            tex.needsUpdate = true;
-            return tex;
-        };
-        const titleTex = createTextTexture();
-        const titleGeo = new THREE.PlaneGeometry(14, 3.5, 64, 1); 
-        const titleMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uTexture: { value: titleTex },
-                uBend: { value: 0.25 }, // Stronger bend
-                uOpacity: { value: 0.0 }, 
-                uColor: { value: new THREE.Vector3(1, 1, 1) }
-            },
-            vertexShader: titleVertex,
-            fragmentShader: titleFragment,
-            transparent: true,
-            depthWrite: false,
-            side: THREE.DoubleSide
-        });
-        const titleMesh = new THREE.Mesh(titleGeo, titleMat);
-        titleMesh.position.set(0, 0.5, 0); 
-        scene.add(titleMesh);
 
         // --- Animation Logic ---
         let startTime = Date.now();
@@ -285,19 +371,20 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const loop = () => {
             const now = Date.now();
             const elapsed = (now - startTime) * 0.001;
-            const scroll = window.scrollY / window.innerHeight; 
+            const scroll = window.scrollY / window.innerHeight; // Normalized scroll 0-1 approx
 
             // Update Uniforms
             const audio = getAudioData();
+            
+            // Raw values for maximum dynamic range
+            // BOOSTED SENSITIVITY
             const bass = Math.min(audio.bass * 3.0, 1.0); 
             const voice = Math.min(audio.mid * 3.0, 1.0);
 
-            // Sync Uniforms across Main and Occlusion
             particleMaterial.uniforms.uTime.value = elapsed;
-            occParticleMat.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
 
-            // Audio Uniforms
+            // Audio Uniforms - Faster lerp for responsiveness
             fieldMat.uniforms.uBass.value = THREE.MathUtils.lerp(fieldMat.uniforms.uBass.value, bass, 0.2);
             fieldMat.uniforms.uVoice.value = THREE.MathUtils.lerp(fieldMat.uniforms.uVoice.value, voice, 0.2);
 
@@ -307,62 +394,55 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             let textOpacity = 0;
             let flash = 0;
 
+            // Timeline:
+            // 0s - 3s: Fade In "God Is"
+            // 3s - 5s: Hold
+            // 5s+: Big Bang (0.0 -> 1.0)
+
             if (elapsed < 3.0) {
                 textOpacity = smoothstep(0.0, 3.0, elapsed);
             } else if (elapsed < 5.0) {
                 textOpacity = 1.0;
             } else {
+                // Big Bang Start
                 const explosionTime = elapsed - 5.0;
-                morphProgress = Math.min(explosionTime * 0.8, 1.0); 
+                morphProgress = Math.min(explosionTime * 0.8, 1.0); // 1.25s explosion morph
                 textOpacity = 1.0;
+                
+                // Flash Effect (Peak at start of explosion)
                 flash = Math.max(0, 1.0 - explosionTime * 0.5); 
+                
+                // Camera drift
                 camera.position.z = 8.0 - morphProgress * 2.0; 
             }
 
+            // Scroll Logic (Overrides/Adds to auto animation)
             if (scroll > 0.1) {
-                morphProgress = 1.0; 
+                morphProgress = 1.0; // Force to lines if scrolling
+
+                // Field Reveal
+                // Reveal starts at scroll 0.2, full by 0.5
                 fieldOpacity = smoothstep(0.1, 0.5, scroll);
+
+                // Tilt camera for 'Horizon' effect
                 camera.rotation.x = -scroll * 0.2;
             }
 
-            // Update main particles
             particleMaterial.uniforms.uMorph.value = morphProgress;
             particleMaterial.uniforms.uOpacity.value = textOpacity;
-            
-            // Update Occlusion particles (Follow same morph)
-            occParticleMat.uniforms.uMorph.value = morphProgress;
-            occParticleMat.uniforms.uOpacity.value = textOpacity;
-
             fieldMat.uniforms.uOpacity.value = fieldOpacity;
+            
+            // Set React State for Flash Overlay (throttled to avoid render thrashing if needed, but RAF is okay usually)
+            // We use a ref or direct DOM manip for perf usually, but state is okay for simple opacity
             setFlashOpacity(flash);
+
+            // Sync with actual scroll for parallax
             fieldMat.uniforms.uScroll.value = scroll;
+            
+            // Gentle Cymatic Rotation
             fieldMesh.rotation.z = elapsed * 0.05;
 
-            // Update Title
-            titleMat.uniforms.uTime.value = elapsed;
-            if (elapsed > 5.5) {
-                titleMat.uniforms.uOpacity.value = Math.min((elapsed - 5.5) * 0.5, 1.0);
-            } else {
-                titleMat.uniforms.uOpacity.value = 0.0;
-            }
-
-            // Lens & GodRays Uniforms
-            lensPass.uniforms.uDistortion.value = THREE.MathUtils.lerp(lensPass.uniforms.uDistortion.value, bass * 0.1, 0.1);
-            lensPass.uniforms.uAberration.value = 0.005 + bass * 0.02;
-            
-            // God Rays Reactive Intensity
-            // Sun gets brighter with voice
-            godRaysPass.uniforms.fExposure.value = 0.6 + voice * 0.4;
-            
-            // Move God Ray Center with camera/mouse if desired (static center for now)
-            const sunPos = new THREE.Vector3(0, 0, -2).project(camera);
-            godRaysPass.uniforms.fX.value = (sunPos.x + 1) / 2;
-            godRaysPass.uniforms.fY.value = (sunPos.y + 1) / 2;
-
-            // Render
-            occlusionComposer.render();
-            finalComposer.render();
-            
+            renderer.render(scene, camera);
             frameId = requestAnimationFrame(loop);
         };
 
@@ -373,8 +453,6 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            occlusionComposer.setSize(window.innerWidth / 2, window.innerHeight / 2);
-            finalComposer.setSize(window.innerWidth, window.innerHeight);
         };
         window.addEventListener('resize', handleResize);
 
@@ -582,17 +660,22 @@ export default function V11Page() {
 
             {/* Section 1: Cinematic Intro Spacer & Title Reveal */}
             <section className="relative h-[150vh] w-full pointer-events-none">
-                {/* 3D Title is now in CinematicIntro Canvas */}
-                
-                {/* Audio Enable Button (Pointer events enabled) */}
-                <div className="absolute top-[60%] left-1/2 -translate-x-1/2 pointer-events-auto z-50">
+                {/* Sticky Container for the Titles */}
+                <div className="sticky top-0 h-screen w-full flex items-center justify-center">
+                    {/* The Frequency Title (Reveals on scroll) */}
+                    <CurvedTitle />
+                    
+                    {/* Audio Enable Button (Pointer events enabled) */}
+                    <div className="absolute top-[60%] pointer-events-auto z-50">
                          <button 
                             onClick={(e) => { e.stopPropagation(); handleStartExperience(); }}
                             className="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white/80 px-6 py-2 rounded-full text-xs uppercase tracking-widest transition-all hover:scale-105"
                         >
                             Enable Audio
                         </button>
+                    </div>
                 </div>
+
             </section>
 
             {/* Section 2: The Sonic Infusion (Process) */}
