@@ -297,7 +297,7 @@ export default function V12Page() {
                 }} />
               {/* Warm ethereal glow */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vw] h-[50vh] rounded-full opacity-[0.08]"
-                style={{ background: 'radial-gradient(ellipse, rgba(200,160,100,0.5) 0%, transparent 60%)' }} />
+                style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.5) 0%, transparent 60%)' }} />
             </div>
 
             <motion.div
@@ -377,11 +377,11 @@ export default function V12Page() {
 
         {/* Ethereal glow behind mushroom */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[60vh] rounded-full opacity-[0.12]"
-          style={{ background: 'radial-gradient(ellipse, rgba(200,160,100,0.4) 0%, rgba(140,100,60,0.15) 35%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.4) 0%, rgba(140,100,60,0.15) 35%, transparent 70%)' }} />
         
         {/* Secondary warm glow — lower */}
         <div className="absolute top-[55%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[40vh] rounded-full opacity-[0.08]"
-          style={{ background: 'radial-gradient(ellipse, rgba(255,200,120,0.5) 0%, transparent 60%)' }} />
+          style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.3) 0%, transparent 60%)' }} />
 
         {/* Smoke atmospheric layer — breathing */}
         <img 
@@ -479,24 +479,24 @@ export default function V12Page() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
               <div className="flex flex-wrap justify-center gap-4">
                 {(Object.values(MODES) as (typeof MODES[ModeId])[]).map((m) => (
-                  <GlassButton key={m.id} onClick={() => setModeId(m.id as ModeId)} active={modeId === m.id} className="px-6 py-4 min-w-[120px]">
+                  <GlassButton key={m.id} onClick={() => setModeId(m.id as ModeId)} active={modeId === m.id} className="px-6 py-4 min-w-[120px] group">
                     <div className="flex flex-col items-start">
                       <span className="text-sm font-serif italic text-white">{m.hz}</span>
-                      <span className="text-[9px] uppercase tracking-widest text-gray-400 mt-1">{m.label}</span>
+                      <span className="text-[9px] uppercase tracking-widest text-white/40 mt-1 group-hover:text-white/60 transition-colors">{m.label}</span>
                     </div>
                     {modeId === m.id && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_2s_infinite]" />}
                   </GlassButton>
                 ))}
               </div>
               <div className="hidden md:flex items-center gap-3">
-                <Activity className={`w-4 h-4 ${audioReady ? 'text-white animate-pulse' : 'text-gray-600'}`} />
-                <span className="text-[10px] uppercase tracking-widest text-gray-500">{audioReady ? 'Listening' : 'Tap mic to activate'}</span>
+                <Activity className={`w-4 h-4 ${audioReady ? 'text-[#D4AF37] animate-pulse' : 'text-white/20'}`} />
+                <span className="text-[10px] uppercase tracking-widest text-white/30">{audioReady ? 'Listening' : 'Tap mic to activate'}</span>
               </div>
             </div>
           </div>
         </motion.div>
         <div className="mt-12 text-center">
-          <p className="text-[9px] text-gray-600 uppercase tracking-[0.3em]">created for Frequency by Empathy Labs</p>
+          <p className="text-[9px] text-white/30 uppercase tracking-[0.3em]">created for Frequency by Empathy Labs</p>
         </div>
       </section>
 
@@ -519,7 +519,7 @@ export default function V12Page() {
           />
           {/* Ethereal center glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[80%] rounded-full opacity-20"
-            style={{ background: 'radial-gradient(ellipse, rgba(200,170,120,0.5) 0%, transparent 70%)' }} />
+            style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.4) 0%, transparent 70%)' }} />
           <div className="absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b from-black via-black/70 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/70 to-transparent" />
           <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-black to-transparent" />
@@ -754,7 +754,7 @@ export default function V12Page() {
             <ProductBottle />
             {/* Ethereal glow accent near bottle */}
             <div className="absolute bottom-[15%] left-[15%] w-48 h-48 rounded-full opacity-[0.06]"
-              style={{ background: 'radial-gradient(circle, rgba(200,160,100,0.6) 0%, transparent 70%)' }} />
+              style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.6) 0%, transparent 70%)' }} />
           </div>
           <div className="md:hidden py-8 px-4"><ProductBottle /></div>
           <div className="px-6 py-16 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
@@ -779,7 +779,7 @@ export default function V12Page() {
             <div className="grid grid-cols-2 gap-4 mb-10">
               {["Anxiety Relief","Mental Clarity","Sleep Support","100% Organic"].map((item, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-white/80">
-                  <div className="w-5 h-5 rounded-full bg-[#E6F5EC] flex items-center justify-center text-[#009E60]"><Check className="w-3 h-3" /></div>
+                  <div className="w-5 h-5 rounded-full bg-[#D4AF37]/10 flex items-center justify-center text-[#D4AF37]"><Check className="w-3 h-3" /></div>
                   {item}
                 </div>
               ))}
@@ -801,7 +801,7 @@ export default function V12Page() {
 
       <footer className="relative z-10 py-20 text-center">
         <div className="w-full h-px bg-white/5 mb-12" />
-        <p className="text-[9px] text-gray-600 uppercase tracking-[0.3em]">created for Frequency by Empathy Labs</p>
+        <p className="text-[9px] text-white/30 uppercase tracking-[0.3em]">created for Frequency by Empathy Labs</p>
       </footer>
     </div>
   );
