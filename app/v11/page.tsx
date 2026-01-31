@@ -11,9 +11,112 @@ import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
 import { useAmbientSound } from '@/hooks/useAmbientSound';
 import { CurvedTitle } from '@/components/cinematic/CurvedTitle';
+import { titleVertex, titleFragment } from '@/shaders/title/shimmerTitle';
 
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
+// ... (rest of file)
+
+// ... inside CinematicIntro ...
+        // --- 3. 3D Title Setup (Universal Bend) ---
+        // Generate Text Texture
+        const createTextTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2048;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            
+            // Clear (Transparent)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw Text
+            ctx.fillStyle = 'white';
+            ctx.font = '400 180px "Cinzel"'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.letterSpacing = '40px'; // Wide spacing
+            ctx.fillText('FREQUENCY', canvas.width / 2, canvas.height / 2);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.needsUpdate = true;
+            return tex;
+        };
+
+        const titleTex = createTextTexture();
+        
+        const titleGeo = new THREE.PlaneGeometry(14, 3.5, 64, 1); // High segment count for bending
+        const titleMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uTexture: { value: titleTex },
+                uBend: { value: 0.2 }, // The "Universal" Curve amount
+                uOpacity: { value: 0.0 }, // Start hidden
+                uColor: { value: new THREE.Vector3(1, 1, 1) }
+            },
+            vertexShader: titleVertex,
+            fragmentShader: titleFragment,
+            transparent: true,
+            depthWrite: false, // Allow particles to show behind/through
+            side: THREE.DoubleSide
+        });
+        
+        const titleMesh = new THREE.Mesh(titleGeo, titleMat);
+        titleMesh.position.set(0, 0.5, 0); // Center, slightly up
+        scene.add(titleMesh);
+
+
+        // --- Animation Logic ---
+        let startTime = Date.now();
+        // ...
+        
+        const loop = () => {
+            // ... existing loop ...
+            
+            // Update Title Uniforms
+            titleMat.uniforms.uTime.value = elapsed;
+            
+            // Reveal Logic for Title (Delayed)
+            if (elapsed > 5.5) {
+                // Fade in over 2 seconds
+                titleMat.uniforms.uOpacity.value = Math.min((elapsed - 5.5) * 0.5, 1.0);
+            } else {
+                titleMat.uniforms.uOpacity.value = 0.0;
+            }
+            
+            // ... render ...
+        };
+        
+        // ... (rest of loop and dispose) ...
+            titleGeo.dispose();
+            titleMat.dispose();
+            if (titleTex) titleTex.dispose();
+            
+// ...
+
+    return (
+        <div ref={containerRef} className="fixed inset-0 z-0 bg-black">
+            {/* DOM Title Removed - Now 3D */}
+            <div 
+                className="absolute inset-0 bg-white pointer-events-none mix-blend-overlay transition-opacity duration-75"
+                style={{ opacity: flashOpacity }}
+            />
+        </div>
+    );
+};
+
+// ... inside V11Page JSX ...
+            {/* Section 1: Cinematic Intro Spacer & Title Reveal */}
+            <section className="relative h-[150vh] w-full pointer-events-none">
+                {/* DOM Title Removed */}
+                
+                {/* Audio Enable Button (Pointer events enabled) */}
+                <div className="sticky top-0 h-screen w-full flex items-center justify-center">
+                    <div className="absolute top-[60%] pointer-events-auto z-50">
+// ...
+
     <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@100;200;300;400&display=swap');
     
@@ -363,6 +466,45 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         fieldMesh.position.z = -5; // Behind everything
         scene.add(fieldMesh);
 
+        // --- 3. 3D Title Setup (Universal Bend) ---
+        const createTextTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2048;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = '400 180px "Cinzel"'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.letterSpacing = '40px'; 
+            ctx.fillText('FREQUENCY', canvas.width / 2, canvas.height / 2);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.needsUpdate = true;
+            return tex;
+        };
+        const titleTex = createTextTexture();
+        const titleGeo = new THREE.PlaneGeometry(14, 3.5, 64, 1); 
+        const titleMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uTexture: { value: titleTex },
+                uBend: { value: 0.25 }, // Stronger bend
+                uOpacity: { value: 0.0 }, 
+                uColor: { value: new THREE.Vector3(1, 1, 1) }
+            },
+            vertexShader: titleVertex,
+            fragmentShader: titleFragment,
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        const titleMesh = new THREE.Mesh(titleGeo, titleMat);
+        titleMesh.position.set(0, 0.5, 0); 
+        scene.add(titleMesh);
 
         // --- Animation Logic ---
         let startTime = Date.now();
@@ -372,6 +514,14 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             const now = Date.now();
             const elapsed = (now - startTime) * 0.001;
             const scroll = window.scrollY / window.innerHeight; // Normalized scroll 0-1 approx
+
+            // Update Title Uniforms
+            titleMat.uniforms.uTime.value = elapsed;
+            if (elapsed > 5.5) {
+                titleMat.uniforms.uOpacity.value = Math.min((elapsed - 5.5) * 0.5, 1.0);
+            } else {
+                titleMat.uniforms.uOpacity.value = 0.0;
+            }
 
             // Update Uniforms
             const audio = getAudioData();
@@ -660,22 +810,17 @@ export default function V11Page() {
 
             {/* Section 1: Cinematic Intro Spacer & Title Reveal */}
             <section className="relative h-[150vh] w-full pointer-events-none">
-                {/* Sticky Container for the Titles */}
-                <div className="sticky top-0 h-screen w-full flex items-center justify-center">
-                    {/* The Frequency Title (Reveals on scroll) */}
-                    <CurvedTitle />
-                    
-                    {/* Audio Enable Button (Pointer events enabled) */}
-                    <div className="absolute top-[60%] pointer-events-auto z-50">
+                {/* 3D Title is now in CinematicIntro Canvas */}
+                
+                {/* Audio Enable Button (Pointer events enabled) */}
+                <div className="absolute top-[60%] left-1/2 -translate-x-1/2 pointer-events-auto z-50">
                          <button 
                             onClick={(e) => { e.stopPropagation(); handleStartExperience(); }}
                             className="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white/80 px-6 py-2 rounded-full text-xs uppercase tracking-widest transition-all hover:scale-105"
                         >
                             Enable Audio
                         </button>
-                    </div>
                 </div>
-
             </section>
 
             {/* Section 2: The Sonic Infusion (Process) */}
