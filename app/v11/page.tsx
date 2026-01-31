@@ -6,6 +6,9 @@ import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 // Duplicate React import removed.
 import Image from 'next/image';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
@@ -299,6 +302,45 @@ const fieldFragmentShader = `
   }
 `;
 
+const lensDistortionShader = {
+    uniforms: {
+        "tDiffuse": { value: null },
+        "uDistortion": { value: 0.0 },
+        "uAberration": { value: 0.01 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float uDistortion;
+        uniform float uAberration;
+        varying vec2 vUv;
+
+        vec2 distort(vec2 uv, float k) {
+            vec2 d = uv - 0.5;
+            float r2 = dot(d, d);
+            return uv + d * k * r2;
+        }
+
+        void main() {
+            vec2 distortedUV = distort(vUv, uDistortion);
+            
+            float r = texture2D(tDiffuse, distort(vUv, uDistortion + uAberration)).r;
+            float g = texture2D(tDiffuse, distortedUV).g;
+            float b = texture2D(tDiffuse, distort(vUv, uDistortion - uAberration)).b;
+            
+            float vignette = smoothstep(0.8, 0.4, length(vUv - 0.5));
+            gl_FragColor = vec4(vec3(r, g, b) * vignette, 1.0);
+        }
+    `
+};
+
+
 
 // --- CONSTANTS ---
 // INTRO_PHASES removed as unused
@@ -487,6 +529,16 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         titleMesh.position.set(0, 0.5, 0); // Center, slightly up
         scene.add(titleMesh);
 
+        // --- Post-Processing Setup ---
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const distortPass = new ShaderPass(lensDistortionShader);
+        distortPass.uniforms.uDistortion.value = 0.0;
+        distortPass.uniforms.uAberration.value = 0.005; // Subtle chromatic aberration
+        composer.addPass(distortPass);
+
 
         // --- Animation Logic ---
         let startTime = Date.now();
@@ -504,6 +556,15 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             // BOOSTED SENSITIVITY
             const bass = Math.min(audio.bass * 3.0, 1.0); 
             const voice = Math.min(audio.mid * 3.0, 1.0);
+
+            // Update Lens Distortion (Pulse with Bass)
+            // Base distortion 0.05, + bass kick up to 0.25
+            distortPass.uniforms.uDistortion.value = THREE.MathUtils.lerp(
+                distortPass.uniforms.uDistortion.value, 
+                0.05 + bass * 0.2, 
+                0.1
+            );
+            distortPass.uniforms.uAberration.value = 0.005 + bass * 0.01;
 
             particleMaterial.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
@@ -581,7 +642,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             // Gentle Cymatic Rotation
             fieldMesh.rotation.z = elapsed * 0.05;
 
-            renderer.render(scene, camera);
+            composer.render();
             frameId = requestAnimationFrame(loop);
         };
 
@@ -592,6 +653,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         };
         window.addEventListener('resize', handleResize);
 
@@ -610,6 +672,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             titleMat.dispose();
             if (titleTex) titleTex.dispose();
 
+            composer.dispose();
             renderer.dispose();
             if (container) container.innerHTML = '';
         };
