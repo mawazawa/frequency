@@ -7,13 +7,18 @@ import { Canvas } from '@react-three/fiber';
 import clsx from 'clsx';
 import Image from 'next/image';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 
 // Shared Components & Context
 import { useAudio } from '@/components/AudioProvider';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { WaveIcon } from '@/components/ui/WaveIcon';
 import { Accordion } from '@/components/ui/Accordion';
-import { GPGPUParticles } from '@/components/cymatics/GPGPUParticles';
+
+const GPGPUParticles = dynamic(() => import('@/components/cymatics/GPGPUParticles').then(mod => mod.GPGPUParticles), { 
+  ssr: false,
+  loading: () => null
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // ANIMATION CONSTANTS
@@ -117,6 +122,33 @@ const MODES = {
 
 type ModeId = keyof typeof MODES;
 
+const QUIZ_QUESTIONS = [
+  {
+    question: "What does your body need most right now?",
+    options: [
+      { text: "Calm & grounding", icon: "🌿", weight: 'genesis' as ModeId },
+      { text: "Clarity & focus", icon: "💎", weight: 'revelation' as ModeId },
+      { text: "Energy & expansion", icon: "⚡", weight: 'ascension' as ModeId },
+    ]
+  },
+  {
+    question: "How would you describe your current state?",
+    options: [
+      { text: "Overwhelmed — I need to slow down", icon: "🌊", weight: 'genesis' as ModeId },
+      { text: "Foggy — I need to cut through the noise", icon: "🔮", weight: 'revelation' as ModeId },
+      { text: "Stagnant — I need to break free", icon: "🔥", weight: 'ascension' as ModeId },
+    ]
+  },
+  {
+    question: "When you close your eyes, what do you hear?",
+    options: [
+      { text: "A deep hum, like the earth breathing", icon: "🪨", weight: 'genesis' as ModeId },
+      { text: "A clear tone, like a bell in still air", icon: "🔔", weight: 'revelation' as ModeId },
+      { text: "A rising wave, like wind through a canyon", icon: "🌀", weight: 'ascension' as ModeId },
+    ]
+  }
+];
+
 // ═══════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════
@@ -144,7 +176,7 @@ const ProductBottle = () => (
         height={500}
         className="object-contain rounded-2xl"
         style={{ filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.4)) drop-shadow(0 10px 20px rgba(0,0,0,0.3))' }}
-        priority
+        sizes="(max-width: 768px) 100vw, 500px"
       />
     </motion.div>
     <div className="absolute bottom-[8%] w-72 h-10 bg-black/25 blur-[25px] rounded-[100%]" />
@@ -223,42 +255,15 @@ export default function V12Page() {
     setShowMicPrompt(false);
   }, []);
 
-  const quizQuestions = [
-    {
-      question: "What does your body need most right now?",
-      options: [
-        { text: "Calm & grounding", icon: "🌿", weight: 'genesis' as ModeId },
-        { text: "Clarity & focus", icon: "💎", weight: 'revelation' as ModeId },
-        { text: "Energy & expansion", icon: "⚡", weight: 'ascension' as ModeId },
-      ]
-    },
-    {
-      question: "How would you describe your current state?",
-      options: [
-        { text: "Overwhelmed — I need to slow down", icon: "🌊", weight: 'genesis' as ModeId },
-        { text: "Foggy — I need to cut through the noise", icon: "🔮", weight: 'revelation' as ModeId },
-        { text: "Stagnant — I need to break free", icon: "🔥", weight: 'ascension' as ModeId },
-      ]
-    },
-    {
-      question: "When you close your eyes, what do you hear?",
-      options: [
-        { text: "A deep hum, like the earth breathing", icon: "🪨", weight: 'genesis' as ModeId },
-        { text: "A clear tone, like a bell in still air", icon: "🔔", weight: 'revelation' as ModeId },
-        { text: "A rising wave, like wind through a canyon", icon: "🌀", weight: 'ascension' as ModeId },
-      ]
-    }
-  ];
-
   const handleQuizAnswer = useCallback((answerIndex: number, weight: ModeId) => {
     const newAnswers = [...quizAnswers, answerIndex];
     setQuizAnswers(newAnswers);
     const nextStep = quizStep + 1;
     
-    if (nextStep > quizQuestions.length) {
+    if (nextStep > QUIZ_QUESTIONS.length) {
       const counts: Record<ModeId, number> = { genesis: 0, revelation: 0, ascension: 0 };
       quizAnswers.forEach((ai, qi) => {
-        if (quizQuestions[qi]) counts[quizQuestions[qi].options[ai].weight]++;
+        if (QUIZ_QUESTIONS[qi]) counts[QUIZ_QUESTIONS[qi].options[ai].weight]++;
       });
       counts[weight]++;
       
@@ -267,7 +272,7 @@ export default function V12Page() {
       setModeId(result);
     }
     setQuizStep(nextStep);
-  }, [quizStep, quizAnswers, quizQuestions]);
+  }, [quizStep, quizAnswers]);
 
   const startQuiz = useCallback(() => {
     setQuizStep(1);
@@ -293,11 +298,20 @@ export default function V12Page() {
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
           >
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <img src="/images/mushroom-cluster.jpg" alt="" decoding="async" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vh] max-w-none object-cover opacity-[0.18]"
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vh] max-w-none opacity-[0.18]"
                 style={{
                   maskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)',
                   WebkitMaskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 65%)',
-                }} />
+                }}>
+                <Image
+                  src="/images/mushroom-cluster.jpg"
+                  alt=""
+                  fill
+                  priority
+                  className="object-cover"
+                  sizes="100vw"
+                />
+              </div>
               {/* Warm ethereal glow */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vw] h-[50vh] rounded-full opacity-[0.08]"
                 style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.5) 0%, transparent 60%)' }} />
@@ -365,16 +379,18 @@ export default function V12Page() {
         <div className="absolute inset-0 bg-black" />
         
         {/* Main mushroom — full viewport, centered, slowly breathing */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <img 
-            src="/images/mushroom-cluster.jpg" 
-            alt="" 
-            decoding="async"
-            className="absolute top-1/2 left-1/2 animate-slow-drift w-[130vw] h-[130vh] max-w-none object-cover opacity-[0.35]"
+        <div className="absolute top-1/2 left-1/2 animate-slow-drift w-[130vw] h-[130vh] max-w-none opacity-[0.35]"
             style={{
               maskImage: 'radial-gradient(ellipse 60% 55% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0) 70%)',
               WebkitMaskImage: 'radial-gradient(ellipse 60% 55% at 50% 50%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0) 70%)',
-            }}
+            }}>
+          <Image 
+            src="/images/mushroom-cluster.jpg" 
+            alt=""
+            fill
+            priority
+            className="object-cover"
+            sizes="100vw"
           />
         </div>
 
@@ -387,22 +403,29 @@ export default function V12Page() {
           style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.3) 0%, transparent 60%)' }} />
 
         {/* Smoke atmospheric layer — breathing */}
-        <img 
-          src="/images/mushroom-smoke.jpg" 
-          alt="" 
-          decoding="async"
-          className="absolute inset-0 w-full h-full object-cover animate-ethereal-pulse"
+        <div className="absolute inset-0 w-full h-full animate-ethereal-pulse"
           style={{
             maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 30%, rgba(0,0,0,0.4) 70%, transparent 100%)',
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 30%, rgba(0,0,0,0.4) 70%, transparent 100%)',
-          }}
-        />
+          }}>
+          <Image 
+            src="/images/mushroom-smoke.jpg" 
+            alt="" 
+            fill
+            className="object-cover"
+            sizes="100vw"
+          />
+        </div>
 
         {/* Plant-dark side accents */}
-        <img src="/images/plant-dark.jpg" alt="" loading="lazy" decoding="async" className="absolute left-0 top-0 h-full w-[25vw] object-cover opacity-[0.04]" 
-          style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
-        <img src="/images/plant-dark.jpg" alt="" loading="lazy" decoding="async" className="absolute right-0 top-0 h-full w-[25vw] object-cover opacity-[0.04] scale-x-[-1]"
-          style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
+        <div className="absolute left-0 top-0 h-full w-[25vw] opacity-[0.04]" 
+          style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, transparent 100%)' }}>
+          <Image src="/images/plant-dark.jpg" alt="" fill className="object-cover" sizes="25vw" />
+        </div>
+        <div className="absolute right-0 top-0 h-full w-[25vw] opacity-[0.04] scale-x-[-1]"
+          style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.5) 0%, transparent 100%)' }}>
+          <Image src="/images/plant-dark.jpg" alt="" fill className="object-cover" sizes="25vw" />
+        </div>
 
         {/* Vignette overlay */}
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(0,0,0,0.7) 100%)' }} />
@@ -513,12 +536,12 @@ export default function V12Page() {
         className="relative z-10 w-full overflow-hidden"
       >
         <div className="relative w-full aspect-[16/9] md:aspect-[16/6]">
-          <img
+          <Image
             src="/images/mushroom-smoke.jpg"
             alt=""
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 w-full h-full object-cover object-center opacity-35"
+            fill
+            className="object-cover object-center opacity-35"
+            sizes="100vw"
           />
           {/* Ethereal center glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[80%] rounded-full opacity-20"
@@ -548,12 +571,12 @@ export default function V12Page() {
                 {/* Full-width cinematic mushroom hero */}
                 <div className="relative w-screen -mx-6 mb-10 overflow-hidden" style={{ maxWidth: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
                   <div className="relative w-full aspect-[16/8] md:aspect-[16/6] overflow-hidden">
-                    <img 
-                      src="/images/mushroom-cluster.jpg" 
-                      alt="" 
-                      loading="lazy"
-                      decoding="async"
-                      className="absolute inset-0 w-full h-full object-cover object-center"
+                    <Image
+                      src="/images/mushroom-cluster.jpg"
+                      alt=""
+                      fill
+                      className="object-cover object-center"
+                      sizes="100vw"
                     />
                     <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black via-black/60 to-transparent" />
                     <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/80 to-transparent" />
@@ -582,7 +605,7 @@ export default function V12Page() {
               </motion.div>
             )}
 
-            {quizStep >= 1 && quizStep <= quizQuestions.length && (
+            {quizStep >= 1 && quizStep <= QUIZ_QUESTIONS.length && (
               <motion.div
                 key={`quiz-q${quizStep}`}
                 initial={{ opacity: 0, x: 40, scale: 0.98 }}
@@ -592,7 +615,7 @@ export default function V12Page() {
                 className="text-center"
               >
                 <div className="flex items-center justify-center gap-3 mb-12">
-                  {quizQuestions.map((_, i) => (
+                  {QUIZ_QUESTIONS.map((_, i) => (
                     <div key={i} className={clsx(
                       "h-[3px] sm:h-[2px] w-14 sm:w-12 rounded-full transition-all duration-500",
                       i < quizStep ? "bg-white/80" : i === quizStep - 1 ? "bg-white/60" : "bg-white/20 sm:bg-white/15"
@@ -601,11 +624,11 @@ export default function V12Page() {
                 </div>
 
                 <span className="text-xs uppercase tracking-[0.3em] text-white/40 font-cinzel block mb-8">
-                  Question {quizStep} of {quizQuestions.length}
+                  Question {quizStep} of {QUIZ_QUESTIONS.length}
                 </span>
 
                 <h3 className="font-playfair italic text-3xl md:text-4xl text-white mb-14 leading-relaxed tracking-tight">
-                  {quizQuestions[quizStep - 1].question}
+                  {QUIZ_QUESTIONS[quizStep - 1].question}
                 </h3>
 
                 <motion.div 
@@ -620,7 +643,7 @@ export default function V12Page() {
                   initial="hidden"
                   animate="visible"
                 >
-                  {quizQuestions[quizStep - 1].options.map((opt, i) => (
+                  {QUIZ_QUESTIONS[quizStep - 1].options.map((opt, i) => (
                     <motion.button
                       key={i}
                       variants={{
@@ -644,7 +667,7 @@ export default function V12Page() {
               </motion.div>
             )}
 
-            {quizStep > quizQuestions.length && quizResult && (
+            {quizStep > QUIZ_QUESTIONS.length && quizResult && (
               <motion.div
                 key="quiz-result"
                 initial={{ opacity: 0, scale: 0.95 }}
