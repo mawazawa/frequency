@@ -118,7 +118,7 @@ const smoothstep = (e0: number, e1: number, x: number) => {
 };
 
 const ProductBottle = () => (
-  <div className="relative w-full h-[60vh] md:h-[80vh] flex items-center justify-center">
+  <div className="relative w-full h-[50vh] md:h-[80vh] flex items-center justify-center">
     {/* Warm ambient glow behind product */}
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full opacity-[0.08]"
       style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.6) 0%, transparent 70%)' }} />
@@ -154,20 +154,20 @@ const PurchaseWidget = () => {
               {subType==='sub' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
             </div>
             <div className="text-left">
-              <span className="block font-medium text-sm text-white">Subscribe & Save 15%</span>
-              <span className="block text-xs text-white/50">Delivered monthly • Cancel anytime</span>
+              <span className="block font-medium text-xs sm:text-sm text-white">Subscribe & Save 15%</span>
+              <span className="block text-[10px] sm:text-xs text-white/50">Delivered monthly • Cancel anytime</span>
             </div>
           </div>
-          <span className="font-serif font-medium text-white">$98.00</span>
+          <span className="font-serif font-medium text-sm sm:text-base text-white">$98.00</span>
         </button>
         <button onClick={() => setSubType('once')} className={clsx("w-full flex items-center justify-between px-4 py-3 rounded-md transition-all duration-300 mt-1", subType==='once' ? "bg-white/10 shadow-sm border border-white/10" : "hover:bg-white/5")}>
           <div className="flex items-center gap-3">
             <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType==='once' ? "border-mycelium-gold bg-mycelium-gold" : "border-white/30")}>
               {subType==='once' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
             </div>
-            <div className="text-left"><span className="block font-medium text-sm text-white">One-time Purchase</span></div>
+            <div className="text-left"><span className="block font-medium text-xs sm:text-sm text-white">One-time Purchase</span></div>
           </div>
-          <span className="font-serif font-medium text-white">$115.00</span>
+          <span className="font-serif font-medium text-sm sm:text-base text-white">$115.00</span>
         </button>
       </div>
       <button className="w-full bg-white text-black py-4 px-6 rounded-full font-medium hover:bg-white/90 transition-all flex items-center justify-between group shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
@@ -300,7 +300,7 @@ export default function V12Page() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
-              className="relative z-10 flex flex-col items-center text-center px-8 max-w-md"
+              className="relative z-10 flex flex-col items-center text-center px-4 sm:px-8 max-w-md"
             >
               <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-4 tracking-wide">
                 Find Your Frequency
@@ -444,7 +444,7 @@ export default function V12Page() {
                 initial={{ opacity: 0, y: 30, filter: 'blur(12px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ delay: 1.2, duration: 1.5, ease: "easeOut" }}
-                className="font-playfair italic text-7xl md:text-[10rem] leading-none text-white"
+                className="font-playfair italic text-5xl sm:text-7xl md:text-[10rem] leading-none text-white"
                 style={{ textShadow: '0 0 80px rgba(255,255,255,0.15), 0 0 40px rgba(255,255,255,0.1)' }}
               >
                 Frequency
@@ -609,7 +609,7 @@ export default function V12Page() {
                     >
                       <div className="flex items-center gap-4">
                         <span className="text-2xl sm:text-2xl">{opt.icon}</span>
-                        <span className="text-base sm:text-base text-white/80 group-hover:text-white transition-colors font-light">{opt.text}</span>
+                        <span className="text-sm sm:text-base text-white/80 group-hover:text-white transition-colors font-light">{opt.text}</span>
                       </div>
                     </button>
                   ))}
@@ -712,12 +712,12 @@ export default function V12Page() {
               style={{ background: 'radial-gradient(circle, rgba(200,160,100,0.6) 0%, transparent 70%)' }} />
           </div>
           <div className="md:hidden py-8 px-4"><ProductBottle /></div>
-          <div className="px-6 py-24 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
+          <div className="px-6 py-16 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
             <div className="flex items-center gap-2 mb-6 text-sm font-medium">
               <div className="flex text-mycelium-gold">{[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}</div>
               <span className="text-white/60 border-b border-white/20 pb-0.5">142 Reviews</span>
             </div>
-            <h2 className="text-4xl sm:text-5xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">
+            <h2 className="text-3xl sm:text-4xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">
               {quizResult === 'revelation' ? 'Clarity Dose' : quizResult === 'ascension' ? 'Ascend Dose' : 'Calm Dose'}
               <span className="text-mycelium-gold">.</span>
             </h2>

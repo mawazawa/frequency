@@ -1,14 +1,12 @@
 # Active Task
 **Phase:** 01-cinematic-upgrade
-**Step:** 6 (God Rays - Space Sunrise)
+**Step:** 7 (Review & Polish)
 
 ## Current Context
-We have implemented 3D Bent Title, Glass Lens, and Liquid Particle Physics.
-The final piece is the "Space Sunrise" God Rays effect emanating from the "God Is" text and the explosion.
+All major features (Bent Title, Lens, Liquid Physics, God Rays) are implemented.
+We need to visually review the result and tune parameters (e.g., God Ray density, Title bend amount, Color balance).
 
 ## Todo
-- [x] Implement `curlNoise` function in `silverParticleVertex`.
-- [x] Update explosion logic to follow fluid potential field.
-- [ ] Setup `GodRays` occlusion pass.
-- [ ] Create `GodRays` shader (Radial Blur).
-- [ ] Connect `uVoice` to ray intensity.
+- [x] Implement God Rays with occlusion pipeline.
+- [ ] Verify performance (FPS check).
+- [ ] Tune visual parameters based on user feedback.
