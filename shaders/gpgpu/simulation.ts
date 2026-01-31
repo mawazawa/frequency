@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 export const simulationFragmentShader = /* glsl */ `
+  varying vec2 vUv;
   uniform sampler2D uPositions;
   uniform float uTime;
   uniform float uDelta;
@@ -44,7 +45,7 @@ export const simulationFragmentShader = /* glsl */ `
   }
 
   void main() {
-    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec2 uv = vUv;
     vec4 currentPos = texture2D(uPositions, uv);
     vec3 pos = currentPos.rgb;
     float life = currentPos.a; // Use alpha channel for particle life/phase

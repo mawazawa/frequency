@@ -110,7 +110,7 @@ interface GPGPUParticlesProps {
 
 export const GPGPUParticles = ({ 
   count = 128, 
-  size = 1.5,
+  size = 3.0,
   color1 = [0.1, 0.3, 0.8],
   color2 = [1.0, 0.8, 0.4]
 }: GPGPUParticlesProps) => {
@@ -233,7 +233,11 @@ export const GPGPUParticles = ({
   // 6. Simulation Loop
   // Scene for simulation pass (just a fullscreen quad)
   const simScene = useMemo(() => new THREE.Scene(), []);
-  const simCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
+  const simCamera = useMemo(() => {
+    const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    cam.position.z = 1;
+    return cam;
+  }, []);
   const simQuad = useMemo(() => {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), simMaterial);
     return mesh;

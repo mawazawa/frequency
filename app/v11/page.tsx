@@ -14,7 +14,7 @@ import { useAmbientSound } from '@/hooks/useAmbientSound';
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
     <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@200;300;400&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@100;200;300;400&display=swap');
     
     .font-cinzel { font-family: 'Cinzel', serif; }
     .font-playfair { font-family: 'Playfair Display', serif; }
@@ -26,6 +26,30 @@ const FontStyles = () => (
         -webkit-text-fill-color: transparent;
         filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));
     }
+
+    /* Custom Shimmer Shader for Text */
+    @keyframes textShimmer {
+        0% { background-position: -200% center; }
+        100% { background-position: 200% center; }
+    }
+    
+    .shimmer-text {
+        background: linear-gradient(
+            110deg,
+            #ffffff 20%,
+            #888888 30%,
+            #ffffff 45%,
+            #ffffff 55%,
+            #888888 70%,
+            #ffffff 80%
+        );
+        background-size: 200% auto;
+        color: transparent;
+        -webkit-background-clip: text;
+        background-clip: text;
+        animation: textShimmer 40s linear infinite;
+        opacity: 0.9;
+    }
   `}</style>
 );
 
@@ -34,7 +58,7 @@ const FontStyles = () => (
 // 1. Shaders for the "God Is" -> "Lines" Morph
 const silverParticleVertex = `
   uniform float uTime;
-  uniform float uMorph; // 0 = Text, 1 = Lines
+  uniform float uMorph; // -1.0 = Line, 0.0 = Text, 1.0 = Big Bang Lines
   uniform float uScroll;
   uniform float uParticleSize;
   
@@ -44,21 +68,70 @@ const silverParticleVertex = `
   varying float vAlpha;
   varying float vShimmer;
   
-  void main() {
-    // Morph Logic
-    vec3 currentPos = mix(position, linePosition, smoothstep(0.0, 1.0, uMorph));
-    
-    // Add noise/vibration to lines state
-    if (uMorph > 0.5) {
-        float wave = sin(currentPos.x * 2.0 + uTime * 2.0 + randomOffset * 10.0);
-        currentPos.z += wave * 0.1 * uMorph; // Vibrating depth in line mode
-        currentPos.y += cos(currentPos.x * 5.0 + uTime) * 0.02 * uMorph;
-    }
+  // Easing function for explosion
+  float easeOutExpo(float x) {
+    return x == 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * x);
+  }
 
-    // Scroll effect (move up and away)
-    // When uScroll > 0, the whole system moves naturally as part of the page flow
-    // But we might want specific effects:
-    // currentPos.y += uScroll * 5.0; // Handled by container transform usually, but let's keep it local if needed
+  // Simple pseudo-random noise
+  float noise(float t) {
+    return fract(sin(t) * 43758.5453);
+  }
+  
+  void main() {
+    vec3 currentPos = position;
+    float alpha = 1.0;
+
+    // --- PHASE 1: LINE TO TEXT (uMorph -1.0 to 0.0) ---
+    if (uMorph < 0.0) {
+        float lineProgress = 1.0 + uMorph; // 0.0 = Line, 1.0 = Text
+        
+        // Target: Original Text Position (position attribute)
+        // Start: Condensed Line
+        // We compress Y and Z to 0, and X is slightly compressed
+        vec3 startPos = vec3(position.x * 0.1, 0.0, 0.0);
+        
+        // Twitching effect on the line
+        if (lineProgress < 0.9) {
+            float twitch = noise(uTime * 20.0 + randomOffset) * 0.5;
+            startPos.y += twitch * (1.0 - lineProgress); // More twitch at start
+        }
+
+        currentPos = mix(startPos, position, smoothstep(0.0, 1.0, lineProgress));
+        
+        // Fade in opacity
+        alpha = smoothstep(0.0, 0.5, lineProgress);
+    }
+    // --- PHASE 2: TEXT TO BIG BANG LINES (uMorph 0.0 to 1.0) ---
+    else {
+        // Morph Progress with easing
+        float progress = smoothstep(0.0, 1.0, uMorph);
+        
+        // EXPLOSION LOGIC ("Big Bang")
+        // Violent expansion at the start of the morph
+        float blast = sin(progress * 3.14159) * (1.0 - progress) * 8.0; 
+        blast *= smoothstep(0.0, 0.2, progress); // Only blast at the very beginning
+        
+        // Random direction for chaos
+        vec3 randomDir = normalize(vec3(
+            randomOffset - 0.5, 
+            sin(randomOffset * 10.0), 
+            cos(randomOffset * 20.0)
+        ));
+
+        // Interpolate positions
+        currentPos = mix(position, linePosition, easeOutExpo(progress));
+        
+        // Apply Blast
+        currentPos += randomDir * blast * 2.0;
+
+        // Add noise/vibration to lines state
+        if (uMorph > 0.5) {
+            float wave = sin(currentPos.x * 2.0 + uTime * 2.0 + randomOffset * 10.0);
+            currentPos.z += wave * 0.1 * uMorph; // Vibrating depth in line mode
+            currentPos.y += cos(currentPos.x * 5.0 + uTime) * 0.02 * uMorph;
+        }
+    }
 
     vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
@@ -70,7 +143,7 @@ const silverParticleVertex = `
     vShimmer = sin(uTime * 3.0 + randomOffset * 20.0);
     
     // Alpha fade based on lifecycle
-    vAlpha = 1.0; 
+    vAlpha = alpha; 
   }
 `;
 
@@ -130,15 +203,19 @@ const fieldVertexShader = `
 
     // --- Shape Logic ---
     if (uShapeFn == 0) { // Genesis (Smooth Waves)
-        float n = 3.0 + uBass * 0.5;
-        float m = 3.0 + uVoice * 2.0; 
+        // INCREASED REACTIVITY:
+        // Base frequency 3.0, plus up to 8.0 from bass/voice
+        float n = 3.0 + uBass * 8.0; 
+        float m = 3.0 + uVoice * 8.0; 
         float wave = cos(n * pos.x * PI) * cos(m * pos.y * PI) - cos(m * pos.x * PI) * cos(n * pos.y * PI);
-        displacement = wave * (uVolume * 2.0);
+        
+        // Amplitude modulation: Volume + Bass kick
+        displacement = wave * (uVolume * (1.0 + uBass * 3.0));
     } 
     else if (uShapeFn == 1) { // Revelation (Geometric/Crystalline)
-        vec2 grid = abs(fract(pos * 4.0) - 0.5);
+        vec2 grid = abs(fract(pos * (4.0 + uBass * 4.0)) - 0.5); // Bass changes grid density
         displacement = (1.0 - max(grid.x, grid.y)) * (uVolume * 3.0);
-        displacement *= cos(t * 1.5 + length(pos) * 4.0);
+        displacement *= cos(t * 1.5 + length(pos) * (4.0 + uVoice * 10.0));
     } 
 
     vec3 newPos = position;
@@ -187,6 +264,7 @@ const smoothstep = (edge0: number, edge1: number, x: number): number => {
 
 const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: () => void, getAudioData: () => { bass: number, mid: number, high: number } }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [flashOpacity, setFlashOpacity] = useState(0);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -228,8 +306,9 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
                 for (let x = 0; x < canvas.width; x += 4) {
                     const index = (y * canvas.width + x) * 4;
                     if (data[index] > 50) { // Threshold
-                        const pX = (x / canvas.width - 0.5) * 16.0; // Scale to world
-                        const pY = -(y / canvas.height - 0.5) * 8.0;
+                        // MODIFIED: Smaller scale (16 -> 12) and shift up (y += 2.5)
+                        const pX = (x / canvas.width - 0.5) * 12.0; 
+                        const pY = (-(y / canvas.height - 0.5) * 6.0) + 2.5; 
                         positions.push(pX, pY, 0);
                     }
                 }
@@ -265,7 +344,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const particleMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
-                uMorph: { value: 0 }, // 0 = text, 1 = lines
+                uMorph: { value: -1.0 }, // Start at Line Phase
                 uScroll: { value: 0 },
                 uParticleSize: { value: 0.04 }, // Reduced for finer particles
                 uColor: { value: new THREE.Color(0xdddddd) }, // Silver/Aluminum
@@ -320,28 +399,46 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
 
             // Update Uniforms
             const audio = getAudioData();
-            // Boost values for visual impact
-            const bass = 0.2 + (audio.bass * 0.8);
-            const voice = 0.2 + (audio.mid * 0.8);
+            
+            // Raw values for maximum dynamic range
+            // BOOSTED SENSITIVITY
+            const bass = Math.min(audio.bass * 3.0, 1.0); 
+            const voice = Math.min(audio.mid * 3.0, 1.0);
 
             particleMaterial.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
 
-            // Audio Uniforms
-            fieldMat.uniforms.uBass.value = THREE.MathUtils.lerp(fieldMat.uniforms.uBass.value, bass, 0.1);
-            fieldMat.uniforms.uVoice.value = THREE.MathUtils.lerp(fieldMat.uniforms.uVoice.value, voice, 0.1);
+            // Audio Uniforms - Faster lerp for responsiveness
+            fieldMat.uniforms.uBass.value = THREE.MathUtils.lerp(fieldMat.uniforms.uBass.value, bass, 0.2);
+            fieldMat.uniforms.uVoice.value = THREE.MathUtils.lerp(fieldMat.uniforms.uVoice.value, voice, 0.2);
 
             // Phase Logic
-            // 0 -> 1: Auto morph after 3 seconds
-            let morphProgress = 0;
+            let morphProgress = -1.0;
             let fieldOpacity = 0;
+            let flash = 0;
 
-            if (elapsed > 2.5) {
-                // Start morphing to lines
-                morphProgress = Math.min((elapsed - 2.5) * 0.5, 1.0); // 2s morph
+            // Timeline:
+            // 0s - 2s: Line Contraction (-1.0 -> -0.1)
+            // 2s - 3s: Text Reveal (-0.1 -> 0.0)
+            // 3s - 5s: Hold Text (0.0)
+            // 5s+: Big Bang (0.0 -> 1.0)
 
+            if (elapsed < 2.0) {
+                morphProgress = THREE.MathUtils.lerp(-1.0, -0.1, elapsed / 2.0);
+            } else if (elapsed < 3.0) {
+                morphProgress = THREE.MathUtils.lerp(-0.1, 0.0, (elapsed - 2.0));
+            } else if (elapsed < 5.0) {
+                morphProgress = 0.0;
+            } else {
+                // Big Bang Start
+                const explosionTime = elapsed - 5.0;
+                morphProgress = Math.min(explosionTime * 0.8, 1.0); // 1.25s explosion morph
+                
+                // Flash Effect (Peak at start of explosion)
+                flash = Math.max(0, 1.0 - explosionTime * 0.5); 
+                
                 // Camera drift
-                camera.position.z = 8.0 - morphProgress * 2.0; // Move in slightly
+                camera.position.z = 8.0 - morphProgress * 2.0; 
             }
 
             // Scroll Logic (Overrides/Adds to auto animation)
@@ -352,15 +449,16 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
                 // Reveal starts at scroll 0.2, full by 0.5
                 fieldOpacity = smoothstep(0.1, 0.5, scroll);
 
-                // Move lines away/fade as field appears?
-                // Or lines BECOME the bed. Let's keep them as a shimmering grid.
-
                 // Tilt camera for 'Horizon' effect
                 camera.rotation.x = -scroll * 0.2;
             }
 
             particleMaterial.uniforms.uMorph.value = morphProgress;
             fieldMat.uniforms.uOpacity.value = fieldOpacity;
+            
+            // Set React State for Flash Overlay (throttled to avoid render thrashing if needed, but RAF is okay usually)
+            // We use a ref or direct DOM manip for perf usually, but state is okay for simple opacity
+            setFlashOpacity(flash);
 
             // Sync with actual scroll for parallax
             fieldMat.uniforms.uScroll.value = scroll;
@@ -394,7 +492,14 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         };
     }); // getAudioData is stable from hook
 
-    return <div ref={containerRef} className="fixed inset-0 z-0 bg-black" />;
+    return (
+        <div ref={containerRef} className="fixed inset-0 z-0 bg-black">
+            <div 
+                className="absolute inset-0 bg-white pointer-events-none mix-blend-overlay transition-opacity duration-75"
+                style={{ opacity: flashOpacity }}
+            />
+        </div>
+    );
 };
 
 // --- V1 Helper Components ---
@@ -408,37 +513,16 @@ const ProductBottle = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 1, ease: "easeOut" }}
-                className="relative z-10 w-64 md:w-80 aspect-[3/5] rounded-[40px] shadow-2xl overflow-hidden backdrop-blur-sm border border-white/20"
-                style={{
-                    background: "linear-gradient(135deg, rgba(40,40,40,0.95) 0%, rgba(20,20,20,1) 100%)",
-                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255,255,255,0.1)"
-                }}
+                className="relative z-10 w-64 md:w-80 aspect-[4/5] rounded-[40px] shadow-2xl overflow-hidden border border-white/10"
             >
-                {/* Bottle Cap */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] h-16 bg-[#111] border-b border-white/10 z-20" />
-
-                {/* Label Area */}
-                <div className="absolute inset-4 top-24 border border-white/10 rounded-[20px] p-6 flex flex-col justify-between">
-                    <div>
-                        <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-mycelium-gold to-transparent opacity-50 mb-4" />
-                        <h2 className="text-mycelium-gold font-serif text-3xl text-center tracking-wide">CALM DOSE</h2>
-                        <p className="text-white/40 text-[10px] text-center uppercase tracking-[0.2em] mt-2">Functional Mushroom Blend</p>
-                    </div>
-
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-[10px] text-white/30 font-mono border-t border-white/5 pt-2">
-                            <span>BATCH: 004</span>
-                            <span>180MG</span>
-                        </div>
-                        <div className="w-full h-32 opacity-20 relative overflow-hidden rounded-lg">
-                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-50" />
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-mycelium-gold blur-[60px]" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Glass Reflection */}
-                <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
+                <Image
+                    src="/images/calm-dose-hero.jpg"
+                    alt="Frequency Calm Dose Bottle"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    priority
+                />
             </motion.div>
 
             {/* Shadow Base */}
@@ -605,22 +689,22 @@ export default function V11Page() {
                         whileInView={{ opacity: 1, scale: 1, y: 0 }}
                         viewport={{ margin: "-20% 0px -20% 0px" }}
                         transition={{ duration: 1.5, ease: "easeOut" }}
-                        className="text-[8vw] md:text-[10vw] font-cinzel font-bold text-white tracking-widest mix-blend-overlay z-10 text-center leading-none"
+                        className="text-[8vw] md:text-[10vw] font-sans font-thin shimmer-text tracking-widest z-10 text-center leading-none"
                     >
                         FREQUENCY
                     </motion.h1>
+                    
+                    {/* Audio Enable Button (Pointer events enabled) */}
+                    <div className="absolute top-[60%] pointer-events-auto z-50">
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); handleStartExperience(); }}
+                            className="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white/80 px-6 py-2 rounded-full text-xs uppercase tracking-widest transition-all hover:scale-105"
+                        >
+                            Enable Audio
+                        </button>
+                    </div>
                 </div>
 
-                {/* Scroll Indicator (Fades out) */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 3, duration: 1 }}
-                    className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-20"
-                >
-                    <span className="text-[10px] uppercase tracking-widest text-white/30 font-cinzel">Begin the Ritual</span>
-                    <ChevronDown className="w-4 h-4 text-white/30 animate-bounce" />
-                </motion.div>
             </section>
 
             {/* Section 2: The Sonic Infusion (Process) */}
