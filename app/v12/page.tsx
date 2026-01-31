@@ -307,10 +307,10 @@ export default function V12Page() {
               transition={{ delay: 0.2, duration: 0.8, ease: TRANSITION_EASE }}
               className="relative z-10 flex flex-col items-center text-center px-4 sm:px-8 max-w-md"
             >
-              <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-4 tracking-wide">
+              <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-6 tracking-[0.15em]">
                 Find Your Frequency
               </h2>
-              <p className="text-white/50 text-sm leading-relaxed mb-10 max-w-xs">
+              <p className="text-white/70 text-base font-light leading-loose mb-12 max-w-sm">
                 This experience reacts to your voice and the sounds around you. Enable your microphone to bring the field to life.
               </p>
 
@@ -323,7 +323,7 @@ export default function V12Page() {
                   <svg className="w-8 h-8 text-white/80 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
                   </svg>
-                  <span className="text-[9px] uppercase tracking-[0.3em] text-white/50 group-hover:text-white/80 transition-colors">Enable</span>
+                  <span className="text-[10px] uppercase tracking-[0.25em] text-white/60 group-hover:text-white transition-colors font-medium">Enable</span>
                 </div>
               </button>
 
@@ -417,7 +417,7 @@ export default function V12Page() {
       )}>
         <Link href="/" className="hover:text-white/70 transition-colors"><Menu className="w-6 h-6" /></Link>
         <div className={clsx("absolute left-1/2 -translate-x-1/2 transition-opacity duration-700", scrolled ? "opacity-100" : "opacity-0")}>
-          <span className="font-cinzel text-lg tracking-[0.2em] font-bold">FREQUENCY</span>
+          <span className="font-cinzel text-lg tracking-[0.25em] font-medium text-white/90">FREQUENCY</span>
         </div>
         <div className="flex gap-8 items-center">
           <button onClick={handleEnableAudio} className="relative" title="Enable microphone">
@@ -438,9 +438,9 @@ export default function V12Page() {
             <h1 className="flex flex-col items-center">
               <motion.span
                 initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 0.7, y: 0 }}
+                animate={{ opacity: 0.8, y: 0 }}
                 transition={{ delay: 0.3, duration: 1.0, ease: TRANSITION_EASE }}
-                className="text-4xl md:text-6xl tracking-[0.2em] uppercase text-white font-cinzel block mb-3"
+                className="text-3xl md:text-5xl tracking-[0.35em] uppercase text-white/90 font-cinzel block mb-4"
                 style={{ fontWeight: 300 }}
               >
                 God is
@@ -449,7 +449,7 @@ export default function V12Page() {
                 initial={{ opacity: 0, y: 40, filter: 'blur(12px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ delay: 0.6, duration: 1.4, ease: TRANSITION_EASE }}
-                className="font-playfair italic text-5xl sm:text-7xl md:text-[10rem] leading-none text-white"
+                className="font-playfair italic text-6xl sm:text-8xl md:text-[11rem] leading-[0.85] text-white tracking-tighter"
                 style={{ textShadow: '0 0 80px rgba(255,255,255,0.15), 0 0 40px rgba(255,255,255,0.1)' }}
               >
                 Frequency
@@ -558,10 +558,10 @@ export default function V12Page() {
                     <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-black/60 to-transparent" />
                     <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[60%] h-[60%] bg-white/[0.04] blur-[100px] rounded-full" />
                     <div className="absolute bottom-0 inset-x-0 pb-12 pt-32 bg-gradient-to-t from-black via-black/70 to-transparent flex flex-col items-center">
-                      <h2 className="font-cinzel text-3xl md:text-5xl text-white mb-4 tracking-wide drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]">
+                      <h2 className="font-cinzel text-3xl md:text-5xl text-white mb-6 tracking-[0.1em] drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]">
                         Find Your Frequency
                       </h2>
-                      <p className="text-white/50 text-sm leading-relaxed mb-8 max-w-md mx-auto px-6">
+                      <p className="text-white/70 text-base leading-loose mb-10 max-w-lg mx-auto px-6 font-light">
                         Every body vibrates at its own frequency. Answer three questions to discover which resonance your system needs most.
                       </p>
                       <button
@@ -597,11 +597,11 @@ export default function V12Page() {
                   ))}
                 </div>
 
-                <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-cinzel block mb-6">
+                <span className="text-xs uppercase tracking-[0.3em] text-white/40 font-cinzel block mb-8">
                   Question {quizStep} of {quizQuestions.length}
                 </span>
 
-                <h3 className="font-playfair italic text-2xl md:text-3xl text-white mb-12 leading-relaxed">
+                <h3 className="font-playfair italic text-3xl md:text-4xl text-white mb-14 leading-relaxed tracking-tight">
                   {quizQuestions[quizStep - 1].question}
                 </h3>
 
@@ -660,18 +660,18 @@ export default function V12Page() {
                   </span>
                 </motion.div>
 
-                <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-cinzel block mb-4">
+                <span className="text-xs uppercase tracking-[0.3em] text-white/40 font-cinzel block mb-6">
                   Your Frequency
                 </span>
 
-                <h3 className="font-cinzel text-4xl md:text-5xl text-white mb-3 tracking-wide">
+                <h3 className="font-cinzel text-5xl md:text-6xl text-white mb-4 tracking-[0.1em]">
                   {MODES[quizResult].hz}
                 </h3>
-                <p className="font-playfair italic text-xl text-white/60 mb-6">
+                <p className="font-playfair italic text-2xl text-white/70 mb-8">
                   {MODES[quizResult].label}
                 </p>
 
-                <p className="text-white/40 text-sm leading-relaxed max-w-md mx-auto mb-10">
+                <p className="text-white/60 text-lg font-light leading-loose max-w-lg mx-auto mb-12">
                   {quizResult === 'genesis' && "Your system craves grounding. The 432Hz frequency — the heartbeat of the Earth — will bring you back to center. This is the frequency of calm, of roots, of remembering what matters."}
                   {quizResult === 'revelation' && "Your mind needs clarity. The 528Hz frequency — the Love frequency — cuts through fog and restores natural harmony. This is the frequency of transformation and DNA repair."}
                   {quizResult === 'ascension' && "Your spirit is ready to expand. The 963Hz frequency — the Crown frequency — activates higher consciousness and opens the gate to your full potential."}
@@ -701,8 +701,8 @@ export default function V12Page() {
       <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-20%" }} transition={{ duration: 1 }}
         className="relative z-10 w-full min-h-[80vh] flex items-center justify-center py-24 bg-black/30 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-8 tracking-wide uppercase">The Sonic Infusion</h2>
-          <p className="font-playfair text-xl md:text-3xl text-white/80 leading-relaxed italic mb-12">
+          <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-8 tracking-[0.2em] uppercase">The Sonic Infusion</h2>
+          <p className="font-playfair text-2xl md:text-4xl text-white/80 leading-relaxed italic mb-16 font-light">
             &quot;The Mushrooms don&apos;t Work for Us. We Work for Them.&quot;
           </p>
           <motion.div 
@@ -720,27 +720,27 @@ export default function V12Page() {
           >
             <motion.div 
               variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: TRANSITION_EASE } } }}
-              className="space-y-3"
+              className="space-y-4"
             >
               <Waves className="w-8 h-8 text-mycelium-gold" />
               <h3 className="font-serif text-lg text-white">Grown as Medicine</h3>
-              <p className="text-sm text-white/60 leading-relaxed">Fungi are sentient beings. We treat them with reverence, growing them in clean, high-vibration spaces.</p>
+              <p className="text-base font-light text-white/70 leading-relaxed">Fungi are sentient beings. We treat them with reverence, growing them in clean, high-vibration spaces.</p>
             </motion.div>
             <motion.div 
               variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: TRANSITION_EASE } } }}
-              className="space-y-3"
+              className="space-y-4"
             >
               <Disc className="w-8 h-8 text-mycelium-gold" />
               <h3 className="font-serif text-lg text-white">432Hz Infusion</h3>
-              <p className="text-sm text-white/60 leading-relaxed">Every stage of cultivation is immersed in Solfeggio tones, chants, and nature sounds to harmonize the biological structure.</p>
+              <p className="text-base font-light text-white/70 leading-relaxed">Every stage of cultivation is immersed in Solfeggio tones, chants, and nature sounds to harmonize the biological structure.</p>
             </motion.div>
             <motion.div 
               variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: TRANSITION_EASE } } }}
-              className="space-y-3"
+              className="space-y-4"
             >
               <Sprout className="w-8 h-8 text-mycelium-gold" />
               <h3 className="font-serif text-lg text-white">Nature & Nurture</h3>
-              <p className="text-sm text-white/60 leading-relaxed">&quot;Same genetics, different frequency = different outcome.&quot; We refine unique strains through our in-house cultivation.</p>
+              <p className="text-base font-light text-white/70 leading-relaxed">&quot;Same genetics, different frequency = different outcome.&quot; We refine unique strains through our in-house cultivation.</p>
             </motion.div>
           </motion.div>
         </div>
@@ -758,22 +758,22 @@ export default function V12Page() {
           </div>
           <div className="md:hidden py-8 px-4"><ProductBottle /></div>
           <div className="px-6 py-16 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
-            <div className="flex items-center gap-2 mb-6 text-sm font-medium">
-              <div className="flex text-mycelium-gold">{[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}</div>
-              <span className="text-white/60 border-b border-white/20 pb-0.5">142 Reviews</span>
+            <div className="flex items-center gap-3 mb-8 text-xs font-medium tracking-wide">
+              <div className="flex text-mycelium-gold gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5 fill-current" />)}</div>
+              <span className="text-white/50 uppercase tracking-widest border-b border-white/10 pb-1">142 Reviews</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-7xl font-serif mb-6 leading-[1.1] text-white">
+            <h2 className="text-4xl sm:text-5xl md:text-7xl font-playfair mb-6 leading-[1.05] text-white tracking-tight">
               {quizResult === 'revelation' ? 'Clarity Dose' : quizResult === 'ascension' ? 'Ascend Dose' : 'Calm Dose'}
               <span className="text-mycelium-gold">.</span>
             </h2>
-            <p className="text-lg text-white/70 leading-relaxed mb-6 font-light">
+            <p className="text-xl text-white/80 leading-relaxed mb-8 font-light">
               {quizResult === 'revelation' 
                 ? 'A precision-formulated nootropic blend to sharpen focus and dissolve mental fog.'
                 : quizResult === 'ascension'
                 ? 'An expansion-catalyst blend to unlock energy, creativity, and higher awareness.'
                 : 'A wellness supplement formulated with functional mushroom fruiting bodies to support everyday calm and balance.'}
             </p>
-            <p className="text-sm text-white/50 leading-relaxed mb-10 font-mono">
+            <p className="text-xs text-white/50 leading-relaxed mb-10 font-mono tracking-wide">
               Grown in a {quizResult ? MODES[quizResult].hz : '432 Hz'} sound chamber. This is not just a supplement—it is biological resonance.
             </p>
             <div className="grid grid-cols-2 gap-4 mb-10">
