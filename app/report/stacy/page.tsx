@@ -570,7 +570,7 @@ export default function StacyReport() {
               <li><strong>LA County Superior Court Self-Help Center</strong> — <ExtLink href="https://selfhelp.courts.ca.gov/eviction">selfhelp.courts.ca.gov</ExtLink> — Santa Monica Courthouse has an on-site center</li>
               <li><strong>Legal Aid Foundation of Los Angeles</strong> — <ExtLink href="https://lafla.org">lafla.org</ExtLink> — free legal help for qualifying individuals</li>
               <li><strong>LA County Bar Association</strong> — (213) 243-1525 — $35 initial 30-minute consultation</li>
-              <li><strong>TurboCourt</strong> — <ExtLink href="https://turbocourt.com">turbocourt.com</ExtLink> — online guided form prep</li>
+              <li><strong>JusticeOS.ai</strong> — <ExtLink href="https://justiceos.ai">justiceos.ai</ExtLink> — AI-powered legal case management for self-represented litigants</li>
             </ul>
           </Accordion>
 
