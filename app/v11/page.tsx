@@ -429,6 +429,80 @@ const lensDistortionShader = {
     `
 };
 
+const godRaysShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        fX: { value: 0.5 },
+        fY: { value: 0.5 },
+        fExposure: { value: 0.6 },
+        fDecay: { value: 0.93 },
+        fDensity: { value: 0.96 },
+        fWeight: { value: 0.4 },
+        fClamp: { value: 1.0 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+    `,
+    fragmentShader: `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float fX;
+        uniform float fY;
+        uniform float fExposure;
+        uniform float fDecay;
+        uniform float fDensity;
+        uniform float fWeight;
+        uniform float fClamp;
+
+        void main() {
+            vec2 deltaTextCoord = vec2(vUv - vec2(fX, fY));
+            deltaTextCoord *= 1.0 /  float(100) * fDensity;
+            vec2 coord = vUv;
+            float illuminationDecay = 1.0;
+            vec4 FragColor = vec4(0.0);
+
+            for(int i=0; i < 100 ; i++) {
+                coord -= deltaTextCoord;
+                vec4 texel = texture2D(tDiffuse, coord);
+                texel *= illuminationDecay * fWeight;
+                FragColor += texel;
+                illuminationDecay *= fDecay;
+            }
+            FragColor *= fExposure;
+            FragColor = clamp(FragColor, 0.0, fClamp);
+            gl_FragColor = FragColor;
+        }
+    `
+};
+
+const additiveBlendShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        tAdd: { value: null }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform sampler2D tAdd;
+        varying vec2 vUv;
+        void main() {
+            vec4 color = texture2D( tDiffuse, vUv );
+            vec4 add = texture2D( tAdd, vUv );
+            gl_FragColor = color + add;
+        }
+    `
+};
+
 
 // --- CONSTANTS ---
 // INTRO_PHASES removed as unused
@@ -457,13 +531,55 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
 
-        // --- Post Processing ---
-        const composer = new EffectComposer(renderer);
+        // --- Post Processing Setup ---
+        const occlusionRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth / 2, window.innerHeight / 2);
+        const occlusionComposer = new EffectComposer(renderer, occlusionRenderTarget);
+        
+        // Occlusion Scene (Black objects on Black background, Light sources are White)
+        const occlusionScene = new THREE.Scene();
+        occlusionScene.background = new THREE.Color(0x000000);
+        
+        // Add "Horizon Line" Light Source
+        const horizonGeo = new THREE.PlaneGeometry(50, 0.05);
+        const horizonMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const horizonMesh = new THREE.Mesh(horizonGeo, horizonMat);
+        horizonMesh.position.set(0, 0, -2); // Behind text
+        occlusionScene.add(horizonMesh);
+        
+        // We need a copy of the particles for the occlusion scene that are SOLID WHITE
+        const occParticleMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uMorph: { value: 0.0 }, 
+                uScroll: { value: 0 },
+                uParticleSize: { value: 3.5 }, // Consistent size
+                uColor: { value: new THREE.Color(0xffffff) }, // Pure White
+                uOpacity: { value: 1.0 }, 
+            },
+            vertexShader: silverParticleVertex,
+            fragmentShader: silverParticleFragment,
+            blending: THREE.AdditiveBlending
+        });
+        const occParticleSystem = new THREE.Points(particleGeometry, occParticleMat);
+        occlusionScene.add(occParticleSystem);
+
+        const occlusionRenderPass = new RenderPass(occlusionScene, camera);
+        occlusionComposer.addPass(occlusionRenderPass);
+        
+        const godRaysPass = new ShaderPass(godRaysShader);
+        occlusionComposer.addPass(godRaysPass);
+
+        // Final Composer
+        const finalComposer = new EffectComposer(renderer);
         const renderPass = new RenderPass(scene, camera);
-        composer.addPass(renderPass);
+        finalComposer.addPass(renderPass);
+        
+        const blendPass = new ShaderPass(additiveBlendShader);
+        blendPass.uniforms.tAdd.value = occlusionRenderTarget.texture;
+        finalComposer.addPass(blendPass);
 
         const lensPass = new ShaderPass(lensDistortionShader);
-        composer.addPass(lensPass);
+        finalComposer.addPass(lensPass);
 
         // --- 1. "God Is" Particles Setup ---
         // We generate positions from a canvas
@@ -620,28 +736,19 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         const loop = () => {
             const now = Date.now();
             const elapsed = (now - startTime) * 0.001;
-            const scroll = window.scrollY / window.innerHeight; // Normalized scroll 0-1 approx
-
-            // Update Title Uniforms
-            titleMat.uniforms.uTime.value = elapsed;
-            if (elapsed > 5.5) {
-                titleMat.uniforms.uOpacity.value = Math.min((elapsed - 5.5) * 0.5, 1.0);
-            } else {
-                titleMat.uniforms.uOpacity.value = 0.0;
-            }
+            const scroll = window.scrollY / window.innerHeight; 
 
             // Update Uniforms
             const audio = getAudioData();
-            
-            // Raw values for maximum dynamic range
-            // BOOSTED SENSITIVITY
             const bass = Math.min(audio.bass * 3.0, 1.0); 
             const voice = Math.min(audio.mid * 3.0, 1.0);
 
+            // Sync Uniforms across Main and Occlusion
             particleMaterial.uniforms.uTime.value = elapsed;
+            occParticleMat.uniforms.uTime.value = elapsed;
             fieldMat.uniforms.uTime.value = elapsed;
 
-            // Audio Uniforms - Faster lerp for responsiveness
+            // Audio Uniforms
             fieldMat.uniforms.uBass.value = THREE.MathUtils.lerp(fieldMat.uniforms.uBass.value, bass, 0.2);
             fieldMat.uniforms.uVoice.value = THREE.MathUtils.lerp(fieldMat.uniforms.uVoice.value, voice, 0.2);
 
@@ -651,59 +758,62 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             let textOpacity = 0;
             let flash = 0;
 
-            // Timeline:
-            // 0s - 3s: Fade In "God Is"
-            // 3s - 5s: Hold
-            // 5s+: Big Bang (0.0 -> 1.0)
-
             if (elapsed < 3.0) {
                 textOpacity = smoothstep(0.0, 3.0, elapsed);
             } else if (elapsed < 5.0) {
                 textOpacity = 1.0;
             } else {
-                // Big Bang Start
                 const explosionTime = elapsed - 5.0;
-                morphProgress = Math.min(explosionTime * 0.8, 1.0); // 1.25s explosion morph
+                morphProgress = Math.min(explosionTime * 0.8, 1.0); 
                 textOpacity = 1.0;
-                
-                // Flash Effect (Peak at start of explosion)
                 flash = Math.max(0, 1.0 - explosionTime * 0.5); 
-                
-                // Camera drift
                 camera.position.z = 8.0 - morphProgress * 2.0; 
             }
 
-            // Scroll Logic (Overrides/Adds to auto animation)
             if (scroll > 0.1) {
-                morphProgress = 1.0; // Force to lines if scrolling
-
-                // Field Reveal
-                // Reveal starts at scroll 0.2, full by 0.5
+                morphProgress = 1.0; 
                 fieldOpacity = smoothstep(0.1, 0.5, scroll);
-
-                // Tilt camera for 'Horizon' effect
                 camera.rotation.x = -scroll * 0.2;
             }
 
+            // Update main particles
             particleMaterial.uniforms.uMorph.value = morphProgress;
             particleMaterial.uniforms.uOpacity.value = textOpacity;
-            fieldMat.uniforms.uOpacity.value = fieldOpacity;
             
-            // Set React State for Flash Overlay (throttled to avoid render thrashing if needed, but RAF is okay usually)
-            // We use a ref or direct DOM manip for perf usually, but state is okay for simple opacity
-            setFlashOpacity(flash);
+            // Update Occlusion particles (Follow same morph)
+            occParticleMat.uniforms.uMorph.value = morphProgress;
+            occParticleMat.uniforms.uOpacity.value = textOpacity;
 
-            // Sync with actual scroll for parallax
+            fieldMat.uniforms.uOpacity.value = fieldOpacity;
+            setFlashOpacity(flash);
             fieldMat.uniforms.uScroll.value = scroll;
-            
-            // Gentle Cymatic Rotation
             fieldMesh.rotation.z = elapsed * 0.05;
 
-            // Lens Uniforms
+            // Update Title
+            titleMat.uniforms.uTime.value = elapsed;
+            if (elapsed > 5.5) {
+                titleMat.uniforms.uOpacity.value = Math.min((elapsed - 5.5) * 0.5, 1.0);
+            } else {
+                titleMat.uniforms.uOpacity.value = 0.0;
+            }
+
+            // Lens & GodRays Uniforms
             lensPass.uniforms.uDistortion.value = THREE.MathUtils.lerp(lensPass.uniforms.uDistortion.value, bass * 0.1, 0.1);
             lensPass.uniforms.uAberration.value = 0.005 + bass * 0.02;
+            
+            // God Rays Reactive Intensity
+            // Sun gets brighter with voice
+            godRaysPass.uniforms.fExposure.value = 0.6 + voice * 0.4;
+            
+            // Move God Ray Center with camera/mouse if desired (static center for now)
+            const sunPos = new THREE.Vector3(0, 0, -2).project(camera);
+            godRaysPass.uniforms.fX.value = (sunPos.x + 1) / 2;
+            godRaysPass.uniforms.fY.value = (sunPos.y + 1) / 2;
 
-            composer.render();
+            // Render
+            occlusionComposer.render();
+            finalComposer.render();
+            
             frameId = requestAnimationFrame(loop);
         };
 
@@ -714,7 +824,8 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            composer.setSize(window.innerWidth, window.innerHeight);
+            occlusionComposer.setSize(window.innerWidth / 2, window.innerHeight / 2);
+            finalComposer.setSize(window.innerWidth, window.innerHeight);
         };
         window.addEventListener('resize', handleResize);
 

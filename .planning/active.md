@@ -1,14 +1,14 @@
 # Active Task
 **Phase:** 01-cinematic-upgrade
-**Step:** 5 (Liquid Justice - Curl Noise Flow)
+**Step:** 6 (God Rays - Space Sunrise)
 
 ## Current Context
-We have a 3D Bent Title and a physical Glass Lens effect. Now we need to replace the linear particle explosion with fluid "Liquid Justice" physics using Curl Noise.
+We have implemented 3D Bent Title, Glass Lens, and Liquid Particle Physics.
+The final piece is the "Space Sunrise" God Rays effect emanating from the "God Is" text and the explosion.
 
 ## Todo
-- [x] Create `components/effects/CinematicLens.tsx` (Integrated in `page.tsx`).
-- [x] Implement `ChromaticAberration` shader (Integrated in `page.tsx`).
-- [x] Hook up `useMicAudio` bass to the distortion strength.
-- [ ] Implement `curlNoise` function in `silverParticleVertex`.
-- [ ] Update explosion logic to follow fluid potential field.
-- [ ] Connect `uVoice` to flow intensity.
+- [x] Implement `curlNoise` function in `silverParticleVertex`.
+- [x] Update explosion logic to follow fluid potential field.
+- [ ] Setup `GodRays` occlusion pass.
+- [ ] Create `GodRays` shader (Radial Blur).
+- [ ] Connect `uVoice` to ray intensity.
