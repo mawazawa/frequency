@@ -34,12 +34,48 @@ Elevate the V11 Intro from "Digital Particle Demo" to "Cinema-Quality Simulation
 - [ ] **Integration:**
     - Replace `motion.h1` in `app/v11/page.tsx`.
 
-### Step 2: The Glass Lens (Post-Processing)
-- [ ] **Create Component:** `components/effects/CinematicLens.tsx`
-    - Use `EffectComposer` from `@react-three/postprocessing`.
-    - Create Custom Shader `LensDistortionShader`.
-    - Logic: RGB Split + Barrel Distortion + Vignette.
-    - Inputs: `audio.bass` (for shake), `explosionProgress` (for shockwave).
+### Step 2: The Glass Lens (Post-Processing) - *Active*
+- [ ] **Technical Specification:**
+    - **Vertex Shader (Post-Pass):**
+        ```glsl
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+        ```
+    - **Fragment Shader (LensDistortion):**
+        ```glsl
+        uniform sampler2D tDiffuse;
+        uniform float uDistortion; // Coupled to Audio Bass
+        uniform float uAberration; // RGB Split amount
+        varying vec2 vUv;
+
+        vec2 distort(vec2 uv, float k) {
+            vec2 d = uv - 0.5;
+            float r2 = dot(d, d);
+            return uv + d * k * r2;
+        }
+
+        void main() {
+            // Apply subtle barrel distortion
+            vec2 distortedUV = distort(vUv, uDistortion);
+            
+            // Chromatic Aberration
+            float r = texture2D(tDiffuse, distort(vUv, uDistortion + uAberration)).r;
+            float g = texture2D(tDiffuse, distortedUV).g;
+            float b = texture2D(tDiffuse, distort(vUv, uDistortion - uAberration)).b;
+            
+            // Vignette
+            float vignette = smoothstep(0.8, 0.4, length(vUv - 0.5));
+            
+            gl_FragColor = vec4(vec3(r, g, b) * vignette, 1.0);
+        }
+        ```
+- [ ] **Implementation Task:**
+    - Refactor `CinematicIntro` to include `EffectComposer`.
+    - Create `LensPass` object.
+    - Connect `bass` level to `uDistortion` and `uAberration`.
 
 ### Step 3: Liquid Justice (Curl Noise)
 - [ ] **Update Shader:** `app/v11/page.tsx` (`silverParticleVertex`)

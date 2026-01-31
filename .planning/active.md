@@ -1,17 +1,13 @@
 # Active Task
 **Phase:** 01-cinematic-upgrade
-**Step:** 3 (Title Refactor 2.0 - WebGL)
+**Step:** 4 (The Glass Lens - Post Processing)
 
 ## Current Context
-The user rejected the 2D SVG bend ("flat") and the "weak" shimmer.
-Target: "Universal Studios" 3D orbit bend + High-energy noise-based shimmer.
-Solution: Move Title into the 3D Scene (`CinematicIntro`) using a custom ShaderMaterial on a Bent Plane or Troika Text.
+We have a 3D Bent Title and restored Cymatics. Now we need the "Glass Lens" to make it feel like a physical camera recording.
 
 ## Todo
-- [ ] Create `shaders/title/shimmerTitle.ts`: Custom shader with `uBend`, `uShimmer`, `uNoise`.
-- [ ] Update `CinematicIntro` in `app/v11/page.tsx`:
-    - Remove `<CurvedTitle />` (DOM).
-    - Add `ThreeTitle` mesh to the scene.
-    - Implement Vertex Shader bending (`position.z -= pow(uv.x - 0.5, 2.0) * uBend`).
-    - Implement Fragment Shader noise shimmer.
-- [ ] Verify "Universal" curve feel.
+- [x] Create `shaders/title/shimmerTitle.ts`.
+- [x] Update `CinematicIntro` with 3D Mesh and Custom Shader.
+- [ ] Create `components/effects/CinematicLens.tsx`.
+- [ ] Implement `ChromaticAberration` shader (RGB Split + Barrel Distortion).
+- [ ] Hook up `useMicAudio` bass to the distortion strength.

@@ -6,6 +6,9 @@ import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 // Duplicate React import removed.
 import Image from 'next/image';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
@@ -330,6 +333,44 @@ const fieldFragmentShader = `
   }
 `;
 
+const lensDistortionShader = {
+    uniforms: {
+        "tDiffuse": { value: null },
+        "uDistortion": { value: 0.0 },
+        "uAberration": { value: 0.01 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float uDistortion;
+        uniform float uAberration;
+        varying vec2 vUv;
+
+        vec2 distort(vec2 uv, float k) {
+            vec2 d = uv - 0.5;
+            float r2 = dot(d, d);
+            return uv + d * k * r2;
+        }
+
+        void main() {
+            vec2 distortedUV = distort(vUv, uDistortion);
+            
+            float r = texture2D(tDiffuse, distort(vUv, uDistortion + uAberration)).r;
+            float g = texture2D(tDiffuse, distortedUV).g;
+            float b = texture2D(tDiffuse, distort(vUv, uDistortion - uAberration)).b;
+            
+            float vignette = smoothstep(0.8, 0.4, length(vUv - 0.5));
+            gl_FragColor = vec4(vec3(r, g, b) * vignette, 1.0);
+        }
+    `
+};
+
 
 // --- CONSTANTS ---
 // INTRO_PHASES removed as unused
@@ -357,6 +398,14 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
+
+        // --- Post Processing ---
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const lensPass = new ShaderPass(lensDistortionShader);
+        composer.addPass(lensPass);
 
         // --- 1. "God Is" Particles Setup ---
         // We generate positions from a canvas
@@ -592,7 +641,11 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             // Gentle Cymatic Rotation
             fieldMesh.rotation.z = elapsed * 0.05;
 
-            renderer.render(scene, camera);
+            // Lens Uniforms
+            lensPass.uniforms.uDistortion.value = THREE.MathUtils.lerp(lensPass.uniforms.uDistortion.value, bass * 0.1, 0.1);
+            lensPass.uniforms.uAberration.value = 0.005 + bass * 0.02;
+
+            composer.render();
             frameId = requestAnimationFrame(loop);
         };
 
@@ -603,6 +656,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         };
         window.addEventListener('resize', handleResize);
 
