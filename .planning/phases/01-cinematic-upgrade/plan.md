@@ -77,11 +77,33 @@ Elevate the V11 Intro from "Digital Particle Demo" to "Cinema-Quality Simulation
     - Create `LensPass` object.
     - Connect `bass` level to `uDistortion` and `uAberration`.
 
-### Step 3: Liquid Justice (Curl Noise)
-- [ ] **Update Shader:** `app/v11/page.tsx` (`silverParticleVertex`)
-    - Import `snoise` and `curlNoise` functions.
-    - Calculate `vec3 flow = curlNoise(pos * 0.2 + time * 0.1)`.
-    - Apply `pos += flow * uMorph * sensitivity`.
+### Step 3: Liquid Justice (Curl Noise) - *Active*
+- [ ] **Technical Specification:**
+    - **Curl Noise Algorithm:**
+        ```glsl
+        vec3 curl(vec3 p) {
+            float e = 0.1;
+            vec3 dx = vec3(e, 0.0, 0.0);
+            vec3 dy = vec3(0.0, e, 0.0);
+            vec3 dz = vec3(0.0, 0.0, e);
+            
+            // Sample potential field (Noise)
+            vec3 p_x0 = noise3D(p - dx); vec3 p_x1 = noise3D(p + dx);
+            vec3 p_y0 = noise3D(p - dy); vec3 p_y1 = noise3D(p + dy);
+            vec3 p_z0 = noise3D(p - dz); vec3 p_z1 = noise3D(p + dz);
+            
+            // Return Curl (Velocity Field)
+            return vec3(
+                (p_z1.y - p_z0.y) - (p_y1.z - p_y0.z),
+                (p_x1.z - p_x0.z) - (p_z1.x - p_z0.z),
+                (p_y1.x - p_y0.x) - (p_x1.y - p_x0.y)
+            ) / (2.0 * e);
+        }
+        ```
+- [ ] **Implementation Task:**
+    - Update `silverParticleVertex` shader.
+    - Apply `curl` displacement during explosion.
+    - Sync with `uVoice` for "shimmering" flow.
 
 ### Step 4: God Rays (The Sunrise)
 - [ ] **Occlusion Scene:**
