@@ -58,7 +58,7 @@ const FontStyles = () => (
 // 1. Shaders for the "God Is" -> "Lines" Morph
 const silverParticleVertex = `
   uniform float uTime;
-  uniform float uMorph; // -1.0 = Line, 0.0 = Text, 1.0 = Big Bang Lines
+  uniform float uMorph; // 0.0 = Text, 1.0 = Big Bang Lines
   uniform float uScroll;
   uniform float uParticleSize;
   
@@ -73,64 +73,37 @@ const silverParticleVertex = `
     return x == 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * x);
   }
 
-  // Simple pseudo-random noise
-  float noise(float t) {
-    return fract(sin(t) * 43758.5453);
-  }
-  
   void main() {
     vec3 currentPos = position;
     float alpha = 1.0;
 
-    // --- PHASE 1: LINE TO TEXT (uMorph -1.0 to 0.0) ---
-    if (uMorph < 0.0) {
-        float lineProgress = 1.0 + uMorph; // 0.0 = Line, 1.0 = Text
-        
-        // Target: Original Text Position (position attribute)
-        // Start: Condensed Line
-        // We compress Y and Z to 0, and X is slightly compressed
-        vec3 startPos = vec3(position.x * 0.1, 0.0, 0.0);
-        
-        // Twitching effect on the line
-        if (lineProgress < 0.9) {
-            float twitch = noise(uTime * 20.0 + randomOffset) * 0.5;
-            startPos.y += twitch * (1.0 - lineProgress); // More twitch at start
-        }
+    // --- BIG BANG SEQUENCE (uMorph 0.0 to 1.0) ---
+    // Morph Progress with easing
+    float progress = smoothstep(0.0, 1.0, uMorph);
+    
+    // EXPLOSION LOGIC ("Big Bang")
+    // Violent expansion at the start of the morph
+    float blast = sin(progress * 3.14159) * (1.0 - progress) * 8.0; 
+    blast *= smoothstep(0.0, 0.2, progress); // Only blast at the very beginning
+    
+    // Random direction for chaos
+    vec3 randomDir = normalize(vec3(
+        randomOffset - 0.5, 
+        sin(randomOffset * 10.0), 
+        cos(randomOffset * 20.0)
+    ));
 
-        currentPos = mix(startPos, position, smoothstep(0.0, 1.0, lineProgress));
-        
-        // Fade in opacity
-        alpha = smoothstep(0.0, 0.5, lineProgress);
-    }
-    // --- PHASE 2: TEXT TO BIG BANG LINES (uMorph 0.0 to 1.0) ---
-    else {
-        // Morph Progress with easing
-        float progress = smoothstep(0.0, 1.0, uMorph);
-        
-        // EXPLOSION LOGIC ("Big Bang")
-        // Violent expansion at the start of the morph
-        float blast = sin(progress * 3.14159) * (1.0 - progress) * 8.0; 
-        blast *= smoothstep(0.0, 0.2, progress); // Only blast at the very beginning
-        
-        // Random direction for chaos
-        vec3 randomDir = normalize(vec3(
-            randomOffset - 0.5, 
-            sin(randomOffset * 10.0), 
-            cos(randomOffset * 20.0)
-        ));
+    // Interpolate positions
+    currentPos = mix(position, linePosition, easeOutExpo(progress));
+    
+    // Apply Blast
+    currentPos += randomDir * blast * 2.0;
 
-        // Interpolate positions
-        currentPos = mix(position, linePosition, easeOutExpo(progress));
-        
-        // Apply Blast
-        currentPos += randomDir * blast * 2.0;
-
-        // Add noise/vibration to lines state
-        if (uMorph > 0.5) {
-            float wave = sin(currentPos.x * 2.0 + uTime * 2.0 + randomOffset * 10.0);
-            currentPos.z += wave * 0.1 * uMorph; // Vibrating depth in line mode
-            currentPos.y += cos(currentPos.x * 5.0 + uTime) * 0.02 * uMorph;
-        }
+    // Add noise/vibration to lines state
+    if (uMorph > 0.5) {
+        float wave = sin(currentPos.x * 2.0 + uTime * 2.0 + randomOffset * 10.0);
+        currentPos.z += wave * 0.1 * uMorph; // Vibrating depth in line mode
+        currentPos.y += cos(currentPos.x * 5.0 + uTime) * 0.02 * uMorph;
     }
 
     vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
@@ -306,8 +279,8 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
                 for (let x = 0; x < canvas.width; x += 4) {
                     const index = (y * canvas.width + x) * 4;
                     if (data[index] > 50) { // Threshold
-                        // MODIFIED: Smaller scale (16 -> 12) and shift up (y += 2.5)
-                        const pX = (x / canvas.width - 0.5) * 12.0; 
+                        // MODIFIED: Smaller scale (4.0) and shift up (y += 2.5)
+                        const pX = (x / canvas.width - 0.5) * 4.0; 
                         const pY = (-(y / canvas.height - 0.5) * 6.0) + 2.5; 
                         positions.push(pX, pY, 0);
                     }
@@ -413,26 +386,25 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             fieldMat.uniforms.uVoice.value = THREE.MathUtils.lerp(fieldMat.uniforms.uVoice.value, voice, 0.2);
 
             // Phase Logic
-            let morphProgress = -1.0;
+            let morphProgress = 0.0;
             let fieldOpacity = 0;
+            let textOpacity = 0;
             let flash = 0;
 
             // Timeline:
-            // 0s - 2s: Line Contraction (-1.0 -> -0.1)
-            // 2s - 3s: Text Reveal (-0.1 -> 0.0)
-            // 3s - 5s: Hold Text (0.0)
+            // 0s - 3s: Fade In "God Is"
+            // 3s - 5s: Hold
             // 5s+: Big Bang (0.0 -> 1.0)
 
-            if (elapsed < 2.0) {
-                morphProgress = THREE.MathUtils.lerp(-1.0, -0.1, elapsed / 2.0);
-            } else if (elapsed < 3.0) {
-                morphProgress = THREE.MathUtils.lerp(-0.1, 0.0, (elapsed - 2.0));
+            if (elapsed < 3.0) {
+                textOpacity = smoothstep(0.0, 3.0, elapsed);
             } else if (elapsed < 5.0) {
-                morphProgress = 0.0;
+                textOpacity = 1.0;
             } else {
                 // Big Bang Start
                 const explosionTime = elapsed - 5.0;
                 morphProgress = Math.min(explosionTime * 0.8, 1.0); // 1.25s explosion morph
+                textOpacity = 1.0;
                 
                 // Flash Effect (Peak at start of explosion)
                 flash = Math.max(0, 1.0 - explosionTime * 0.5); 
@@ -454,6 +426,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             }
 
             particleMaterial.uniforms.uMorph.value = morphProgress;
+            particleMaterial.uniforms.uOpacity.value = textOpacity;
             fieldMat.uniforms.uOpacity.value = fieldOpacity;
             
             // Set React State for Flash Overlay (throttled to avoid render thrashing if needed, but RAF is okay usually)
@@ -490,7 +463,7 @@ const CinematicIntro = ({ onScrollRequest, getAudioData }: { onScrollRequest: ()
             renderer.dispose();
             if (container) container.innerHTML = '';
         };
-    }); // getAudioData is stable from hook
+    }, []); // getAudioData is stable from hook
 
     return (
         <div ref={containerRef} className="fixed inset-0 z-0 bg-black">
@@ -688,7 +661,7 @@ export default function V11Page() {
                         initial={{ opacity: 0, scale: 0.9, y: 50 }}
                         whileInView={{ opacity: 1, scale: 1, y: 0 }}
                         viewport={{ margin: "-20% 0px -20% 0px" }}
-                        transition={{ duration: 1.5, ease: "easeOut" }}
+                        transition={{ delay: 5.5, duration: 1.5, ease: "easeOut" }}
                         className="text-[8vw] md:text-[10vw] font-sans font-thin shimmer-text tracking-widest z-10 text-center leading-none"
                     >
                         FREQUENCY
