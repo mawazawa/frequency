@@ -14,11 +14,7 @@ import { useAudio } from '@/components/AudioProvider';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { WaveIcon } from '@/components/ui/WaveIcon';
 import { Accordion } from '@/components/ui/Accordion';
-
-const GPGPUParticles = dynamic(() => import('@/components/cymatics/GPGPUParticles').then(mod => mod.GPGPUParticles), { 
-  ssr: false,
-  loading: () => null
-});
+import { GPGPUParticles } from '@/components/cymatics/GPGPUParticles';
 
 // ═══════════════════════════════════════════════════════════════════
 // ANIMATION CONSTANTS

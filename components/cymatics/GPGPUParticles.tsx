@@ -117,6 +117,16 @@ export const GPGPUParticles = ({
   const { gl, camera } = useThree();
   const { getFrequencyData } = useAudio();
   
+  // Detect floating point texture support
+  const textureType = useMemo(() => {
+    // Check for OES_texture_float extension for WebGL1, or just assume WebGL2 support
+    // Safest fallback is HalfFloatType if FloatType isn't fully supported
+    if (gl.capabilities.isWebGL2 || gl.extensions.get('OES_texture_float')) {
+      return THREE.FloatType;
+    }
+    return THREE.HalfFloatType;
+  }, [gl]);
+
   // Total particles = count * count
   const particleCount = count * count;
 
@@ -146,11 +156,11 @@ export const GPGPUParticles = ({
       count,
       count,
       THREE.RGBAFormat,
-      THREE.FloatType
+      textureType
     );
     tex.needsUpdate = true;
     return tex;
-  }, [initialData, count]);
+  }, [initialData, count, textureType]);
 
   // 2. FBO Setup (Ping-Pong)
   // We need two targets to swap between reading (previous frame) and writing (current frame)
@@ -158,7 +168,7 @@ export const GPGPUParticles = ({
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     format: THREE.RGBAFormat,
-    type: THREE.FloatType, // Critical for precision
+    type: textureType,
     stencilBuffer: false,
     depthBuffer: false,
   });
@@ -167,7 +177,7 @@ export const GPGPUParticles = ({
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     format: THREE.RGBAFormat,
-    type: THREE.FloatType,
+    type: textureType,
     stencilBuffer: false,
     depthBuffer: false,
   });
@@ -252,8 +262,17 @@ export const GPGPUParticles = ({
   const currentTargetIndex = useRef(0);
 
   useFrame((state, delta) => {
+    // Safety check for context loss
+    if (!gl) return;
+
     const { bass, mid, high } = getFrequencyData();
     const time = state.clock.elapsedTime;
+
+    // Ensure baseline movement even without audio
+    // Add small minimum values to keep particles alive
+    const safeBass = Math.max(bass, 0.1);
+    const safeMid = Math.max(mid, 0.1);
+    const safeHigh = Math.max(high, 0.1);
 
     // 1. Simulation Pass
     // Swap targets
@@ -262,26 +281,31 @@ export const GPGPUParticles = ({
     currentTargetIndex.current = 1 - currentTargetIndex.current;
 
     // Update simulation uniforms
-    simMaterial.uniforms.uPositions.value = readTarget.texture;
-    simMaterial.uniforms.uTime.value = time;
-    simMaterial.uniforms.uDelta.value = delta;
-    simMaterial.uniforms.uBass.value = bass;
-    simMaterial.uniforms.uMid.value = mid;
-    simMaterial.uniforms.uHigh.value = high;
+    if (simMaterial.uniforms) {
+      simMaterial.uniforms.uPositions.value = readTarget.texture;
+      simMaterial.uniforms.uTime.value = time;
+      simMaterial.uniforms.uDelta.value = delta;
+      simMaterial.uniforms.uBass.value = safeBass;
+      simMaterial.uniforms.uMid.value = safeMid;
+      simMaterial.uniforms.uHigh.value = safeHigh;
+    }
 
     // Render new positions to writeTarget
     gl.setRenderTarget(writeTarget);
+    gl.clear(); // Ensure clear
     gl.render(simScene, simCamera);
     gl.setRenderTarget(null); // Reset to default framebuffer
 
     // 2. Render Pass (Particles)
     // Update render material to read from the target we just wrote to
-    renderMaterial.uniforms.uPositions.value = writeTarget.texture;
-    renderMaterial.uniforms.uTime.value = time;
-    renderMaterial.uniforms.uBass.value = bass;
-    renderMaterial.uniforms.uMid.value = mid;
-    renderMaterial.uniforms.uColor1.value.set(...color1);
-    renderMaterial.uniforms.uColor2.value.set(...color2);
+    if (renderMaterial.uniforms) {
+      renderMaterial.uniforms.uPositions.value = writeTarget.texture;
+      renderMaterial.uniforms.uTime.value = time;
+      renderMaterial.uniforms.uBass.value = safeBass;
+      renderMaterial.uniforms.uMid.value = safeMid;
+      renderMaterial.uniforms.uColor1.value.set(...color1);
+      renderMaterial.uniforms.uColor2.value.set(...color2);
+    }
   });
 
   return (
