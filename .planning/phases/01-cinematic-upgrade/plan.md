@@ -22,6 +22,18 @@ Elevate the V11 Intro from "Digital Particle Demo" to "Cinema-Quality Simulation
     - Action: Set `vDisplacement` scale to `0.5` (Controlled Reactivity).
     - Action: Add `fieldMesh.rotation.z` animation.
 
+### Step 1.5: Title Refactor (SVG) - *Active*
+- [ ] **Create Component:** `components/cinematic/CurvedTitle.tsx`
+    - **Tech:** SVG, Framer Motion.
+    - **Features:**
+        - `<defs><linearGradient id="shimmer">`: Smooth stops to fix "contour lines".
+        - `<path id="curve">`: A gentle arc (`M start Q control end`).
+        - `<text><textPath href="#curve">`: Bends the text perfectly.
+        - `stroke`: Apply stroke via SVG attributes (cleaner than CSS).
+        - `viewBox`: Tall enough to show the full "Q".
+- [ ] **Integration:**
+    - Replace `motion.h1` in `app/v11/page.tsx`.
+
 ### Step 2: The Glass Lens (Post-Processing)
 - [ ] **Create Component:** `components/effects/CinematicLens.tsx`
     - Use `EffectComposer` from `@react-three/postprocessing`.

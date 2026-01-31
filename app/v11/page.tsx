@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
 import { useAmbientSound } from '@/hooks/useAmbientSound';
+import { CurvedTitle } from '@/components/cinematic/CurvedTitle';
 
 // --- Shared Styles & Fonts ---
 const FontStyles = () => (
@@ -662,16 +663,7 @@ export default function V11Page() {
                 {/* Sticky Container for the Titles */}
                 <div className="sticky top-0 h-screen w-full flex items-center justify-center">
                     {/* The Frequency Title (Reveals on scroll) */}
-                    <motion.h1
-                        initial={{ opacity: 0, scale: 0.9, y: 50 }}
-                        whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                        viewport={{ margin: "-20% 0px -20% 0px" }}
-                        transition={{ delay: 5.5, duration: 1.5, ease: "easeOut" }}
-                        style={{ WebkitTextStroke: '1.5px black' }}
-                        className="text-[8vw] md:text-[10vw] font-cinzel font-normal shimmer-text tracking-widest z-10 text-center leading-none"
-                    >
-                        FREQUENCY
-                    </motion.h1>
+                    <CurvedTitle />
                     
                     {/* Audio Enable Button (Pointer events enabled) */}
                     <div className="absolute top-[60%] pointer-events-auto z-50">
