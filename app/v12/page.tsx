@@ -160,7 +160,7 @@ const smoothstep = (e0: number, e1: number, x: number) => {
 const ProductBottle = () => (
   <div className="relative w-full h-[50vh] md:h-[80vh] flex items-center justify-center">
     {/* Warm ambient glow behind product */}
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full opacity-[0.08]"
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-[0.12] blur-3xl"
       style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.6) 0%, transparent 70%)' }} />
     <motion.div
       initial={{ opacity: 0, y: 40, scale: 0.95 }}
@@ -169,52 +169,101 @@ const ProductBottle = () => (
       transition={{ duration: 1.2, ease: TRANSITION_EASE }}
       className="relative z-10"
     >
-      <Image
-        src="/images/calm-product.jpg"
-        alt="Frequency Calm Dose - Functional Mushroom Blend"
-        width={500}
-        height={500}
-        className="object-contain rounded-2xl"
-        style={{ filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.4)) drop-shadow(0 10px 20px rgba(0,0,0,0.3))' }}
-        sizes="(max-width: 768px) 100vw, 500px"
-      />
+      <motion.div
+        animate={{ y: [-10, 10, -10] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <Image
+          src="/images/calm-product.jpg"
+          alt="Frequency Calm Dose - Functional Mushroom Blend"
+          width={500}
+          height={500}
+          className="object-contain rounded-2xl"
+          style={{ filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.5)) drop-shadow(0 15px 30px rgba(0,0,0,0.3))' }}
+          sizes="(max-width: 768px) 100vw, 500px"
+        />
+      </motion.div>
     </motion.div>
-    <div className="absolute bottom-[8%] w-72 h-10 bg-black/25 blur-[25px] rounded-[100%]" />
+    <div className="absolute bottom-[8%] w-72 h-12 bg-black/40 blur-[30px] rounded-[100%]" />
   </div>
 );
 
 const PurchaseWidget = () => {
   const [subType, setSubType] = useState<'sub'|'once'>('sub');
   return (
-    <div className="mt-8 space-y-6">
-      <div className="bg-white/5 border border-white/10 rounded-lg p-1 shadow-sm backdrop-blur-md">
-        <button onClick={() => setSubType('sub')} className={clsx("w-full flex items-center justify-between px-4 py-3 rounded-md transition-all duration-300", subType==='sub' ? "bg-white/10 shadow-sm border border-white/10" : "hover:bg-white/5")}>
-          <div className="flex items-center gap-3">
-            <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType==='sub' ? "border-mycelium-gold bg-mycelium-gold" : "border-white/30")}>
-              {subType==='sub' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
+    <div className="mt-10 space-y-6">
+      <div className="bg-white/5 border border-white/10 rounded-xl p-1.5 shadow-lg backdrop-blur-md overflow-hidden">
+        {/* Subscription Option */}
+        <button 
+          onClick={() => setSubType('sub')} 
+          className={clsx(
+            "w-full flex items-center justify-between px-5 py-4 rounded-lg transition-all duration-300 relative group",
+            subType==='sub' ? "bg-white/10 shadow-inner border border-white/5" : "hover:bg-white/5 border border-transparent"
+          )}
+        >
+          <div className="flex items-center gap-4">
+            <div className={clsx(
+              "w-5 h-5 rounded-full border flex items-center justify-center transition-all duration-300", 
+              subType==='sub' ? "border-[#D4AF37] bg-[#D4AF37] scale-110" : "border-white/30 group-hover:border-white/50"
+            )}>
+              {subType==='sub' && <div className="w-2 h-2 bg-black rounded-full" />}
             </div>
             <div className="text-left">
-              <span className="block font-medium text-xs sm:text-sm text-white">Subscribe & Save 15%</span>
-              <span className="block text-[10px] sm:text-xs text-white/50">Delivered monthly • Cancel anytime</span>
+              <span className={clsx("block font-medium text-sm sm:text-base transition-colors", subType==='sub' ? "text-white" : "text-white/80")}>
+                Subscribe & Save 15%
+              </span>
+              <span className="block text-xs text-white/50 mt-0.5">Delivered monthly • Cancel anytime</span>
             </div>
           </div>
-          <span className="font-serif font-medium text-sm sm:text-base text-white">$98.00</span>
+          <div className="text-right">
+             <span className="block font-serif font-medium text-lg text-white">$98.00</span>
+             <span className="block text-xs text-white/40 line-through decoration-white/30">$115.00</span>
+          </div>
+          {subType === 'sub' && <div className="absolute inset-0 border border-[#D4AF37]/20 rounded-lg pointer-events-none" />}
         </button>
-        <button onClick={() => setSubType('once')} className={clsx("w-full flex items-center justify-between px-4 py-3 rounded-md transition-all duration-300 mt-1", subType==='once' ? "bg-white/10 shadow-sm border border-white/10" : "hover:bg-white/5")}>
-          <div className="flex items-center gap-3">
-            <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType==='once' ? "border-mycelium-gold bg-mycelium-gold" : "border-white/30")}>
-              {subType==='once' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
+
+        {/* One-time Option */}
+        <button 
+          onClick={() => setSubType('once')} 
+          className={clsx(
+            "w-full flex items-center justify-between px-5 py-4 rounded-lg transition-all duration-300 mt-1 relative group",
+            subType==='once' ? "bg-white/10 shadow-inner border border-white/5" : "hover:bg-white/5 border border-transparent"
+          )}
+        >
+          <div className="flex items-center gap-4">
+            <div className={clsx(
+              "w-5 h-5 rounded-full border flex items-center justify-center transition-all duration-300", 
+              subType==='once' ? "border-[#D4AF37] bg-[#D4AF37] scale-110" : "border-white/30 group-hover:border-white/50"
+            )}>
+              {subType==='once' && <div className="w-2 h-2 bg-black rounded-full" />}
             </div>
-            <div className="text-left"><span className="block font-medium text-xs sm:text-sm text-white">One-time Purchase</span></div>
+            <div className="text-left">
+              <span className={clsx("block font-medium text-sm sm:text-base transition-colors", subType==='once' ? "text-white" : "text-white/80")}>
+                One-time Purchase
+              </span>
+            </div>
           </div>
-          <span className="font-serif font-medium text-sm sm:text-base text-white">$115.00</span>
+          <span className="font-serif font-medium text-lg text-white">$115.00</span>
+          {subType === 'once' && <div className="absolute inset-0 border border-[#D4AF37]/20 rounded-lg pointer-events-none" />}
         </button>
       </div>
-      <button className="w-full bg-white text-black py-4 px-6 rounded-full font-medium hover:bg-white/90 transition-all flex items-center justify-between group shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-        <span>Add to Cart</span>
-        <span className="flex items-center gap-2">{subType==='sub'?'$98.00':'$115.00'}<ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></span>
+
+      <button className="group relative w-full bg-[#FAFAFA] text-black py-5 px-8 rounded-full font-medium hover:bg-white transition-all duration-300 flex items-center justify-between shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_50px_rgba(255,255,255,0.2)] transform hover:-translate-y-0.5 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+        <span className="relative z-10 text-lg tracking-wide">Add to Cart</span>
+        <span className="relative z-10 flex items-center gap-3 font-serif text-lg">
+          {subType==='sub'?'$98.00':'$115.00'}
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        </span>
       </button>
-      <p className="text-center text-xs text-white/40">Free shipping on orders over $100. 30-day money back guarantee.</p>
+
+      <div className="flex items-center justify-center gap-6 opacity-60">
+        <div className="flex items-center gap-2">
+           <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+           <span className="text-[10px] uppercase tracking-widest text-white">In Stock</span>
+        </div>
+        <p className="text-[10px] uppercase tracking-widest text-white">Free shipping over $100</p>
+      </div>
     </div>
   );
 };
@@ -861,42 +910,62 @@ export default function V12Page() {
           </div>
           <div className="md:hidden py-8 px-4"><ProductBottle /></div>
           <div className="px-6 py-16 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
-            <div className="flex items-center gap-3 mb-8 text-xs font-medium tracking-wide">
-              <div className="flex text-mycelium-gold gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5 fill-current" />)}</div>
-              <span className="text-white/50 uppercase tracking-widest border-b border-white/10 pb-1">142 Reviews</span>
+            <div className="flex items-center gap-4 mb-10">
+              <div className="flex text-[#D4AF37] gap-0.5">
+                {[1,2,3,4,5].map(i => <Star key={i} className="w-3 h-3 fill-current" />)}
+              </div>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">142 Reviews</span>
             </div>
-            <h2 className="text-4xl sm:text-5xl md:text-7xl font-playfair mb-6 leading-[1.05] text-white tracking-tight">
+            
+            <h2 className="text-4xl sm:text-5xl md:text-7xl font-playfair mb-8 leading-[1.05] text-white tracking-tight drop-shadow-2xl">
               {quizResult === 'revelation' ? 'Clarity Dose' : quizResult === 'ascension' ? 'Ascend Dose' : 'Calm Dose'}
-              <span className="text-mycelium-gold">.</span>
+              <span className="text-[#D4AF37]">.</span>
             </h2>
-            <p className="text-xl text-white/80 leading-relaxed mb-8 font-light">
+
+            <p className="text-lg md:text-xl text-white/80 leading-relaxed mb-8 font-light max-w-lg">
               {quizResult === 'revelation' 
                 ? 'A precision-formulated nootropic blend to sharpen focus and dissolve mental fog.'
                 : quizResult === 'ascension'
                 ? 'An expansion-catalyst blend to unlock energy, creativity, and higher awareness.'
                 : 'A wellness supplement formulated with functional mushroom fruiting bodies to support everyday calm and balance.'}
             </p>
-            <p className="text-xs text-white/50 leading-relaxed mb-10 font-mono tracking-wide">
-              Grown in a {quizResult ? MODES[quizResult].hz : '432 Hz'} sound chamber. This is not just a supplement—it is biological resonance.
-            </p>
-            <div className="grid grid-cols-2 gap-4 mb-10">
+
+            <div className="inline-block px-4 py-2 border border-white/10 rounded-full bg-white/5 mb-12 backdrop-blur-md">
+              <p className="text-[10px] uppercase tracking-widest text-white/60 font-medium">
+                Grown in <span className="text-white">{quizResult ? MODES[quizResult].hz : '432 Hz'}</span> sound chamber
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-y-6 gap-x-8 mb-12">
               {["Anxiety Relief","Mental Clarity","Sleep Support","100% Organic"].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm text-white/80">
-                  <div className="w-5 h-5 rounded-full bg-[#D4AF37]/10 flex items-center justify-center text-[#D4AF37]"><Check className="w-3 h-3" /></div>
+                <div key={i} className="flex items-center gap-3 text-sm text-white/90 font-light">
+                  <div className="w-5 h-5 rounded-full border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] bg-[#D4AF37]/5">
+                    <Check className="w-2.5 h-2.5" />
+                  </div>
                   {item}
                 </div>
               ))}
             </div>
-            <div className="border-t border-white/10 mb-8">
+
+            <div className="border-t border-white/10 mb-10 pt-4">
               <Accordion title="Ingredients">
-                <ul className="list-disc pl-4 space-y-1">
-                  <li><strong>Active:</strong> Lion&apos;s Mane (fruiting body), Reishi (fruiting body), Cordyceps (fruiting body)</li>
-                  <li><strong>Other:</strong> Vegan capsule (plant-based cellulose)</li>
+                <ul className="list-disc pl-4 space-y-2 text-sm text-white/70 font-light">
+                  <li><strong className="text-white font-medium">Active:</strong> Lion&apos;s Mane (fruiting body), Reishi (fruiting body), Cordyceps (fruiting body)</li>
+                  <li><strong className="text-white font-medium">Other:</strong> Vegan capsule (plant-based cellulose)</li>
                 </ul>
               </Accordion>
-              <Accordion title="Dosage Ritual">We recommend you take 1 a day, in the morning, for a <strong>two-day on and two-days off protocol</strong> to maximize the long-term benefits.</Accordion>
-              <Accordion title="The Frequency Difference">Grown in 432Hz (The Miracle Tone). We imbue the biological structure with inherent harmonic stability.</Accordion>
+              <Accordion title="Dosage Ritual">
+                <p className="text-sm text-white/70 font-light leading-relaxed">
+                  We recommend you take 1 a day, in the morning, for a <strong className="text-white font-medium">two-day on, two-day off protocol</strong> to maximize the long-term benefits.
+                </p>
+              </Accordion>
+              <Accordion title="The Frequency Difference">
+                <p className="text-sm text-white/70 font-light leading-relaxed">
+                  Grown in 432Hz (The Miracle Tone). We imbue the biological structure with inherent harmonic stability.
+                </p>
+              </Accordion>
             </div>
+
             <PurchaseWidget />
           </div>
         </div>
