@@ -4,6 +4,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, Sprout, Activity } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
@@ -458,13 +461,15 @@ export default function V12Page() {
   const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
 
   // Text scroll transforms — fades out and drifts up with parallax
-  const textOpacity = useTransform(scrollY, [0, 250], [1, 0]);
-  const textY = useTransform(scrollY, [0, 600], [0, -180]);
+  const textOpacity = useTransform(scrollY, [0, 150], [1, 0]);
+  const textY = useTransform(scrollY, [0, 400], [0, -120]);
 
   const sceneRef = useRef<{
     renderer?: THREE.WebGLRenderer;
     scene?: THREE.Scene;
     camera?: THREE.PerspectiveCamera;
+    composer?: EffectComposer;
+    bloomPass?: UnrealBloomPass;
     fieldMaterial?: THREE.ShaderMaterial;
     fieldPoints?: THREE.Points;
     etherMaterial?: THREE.ShaderMaterial;
@@ -497,7 +502,7 @@ export default function V12Page() {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     container.appendChild(renderer.domElement);
 
     // ── UNIFIED PARTICLE SYSTEM ──
@@ -554,13 +559,24 @@ export default function V12Page() {
     const etherPoints = new THREE.Points(etherGeo, etherMat);
     scene.add(etherPoints);
 
-    sceneRef.current = { renderer, scene, camera, fieldMaterial: fieldMat, fieldPoints, etherMaterial: etherMat, etherPoints };
+    // ── Post-processing: UnrealBloomPass ──
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.8, 0.2);
+    composer.addPass(bloomPass);
+
+    sceneRef.current = { renderer, scene, camera, composer, bloomPass, fieldMaterial: fieldMat, fieldPoints, etherMaterial: etherMat, etherPoints };
     stateRef.current.startTime = performance.now();
 
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      if (sceneRef.current.composer) {
+        sceneRef.current.composer.setSize(window.innerWidth, window.innerHeight);
+      }
     };
     window.addEventListener('resize', handleResize);
 
@@ -659,7 +675,16 @@ export default function V12Page() {
         s.camera.rotation.x = -morph * 0.35;
       }
 
-      s.renderer.render(s.scene, s.camera);
+      // Modulate bloom with audio volume
+      if (s.bloomPass) {
+        s.bloomPass.strength = 0.4 + vol * 0.3;
+      }
+
+      if (s.composer) {
+        s.composer.render();
+      } else {
+        s.renderer.render(s.scene, s.camera);
+      }
       frameId = requestAnimationFrame(animate);
     };
 
@@ -837,24 +862,40 @@ export default function V12Page() {
             className="relative z-10 text-center select-none"
             style={{ opacity: textOpacity, y: textY }}
           >
-            <h1 className="flex flex-col items-center">
-              <motion.span
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 0.7, y: 0 }}
-                transition={{ delay: 1.0, duration: 1.5, ease: "easeOut" }}
-                className="text-4xl md:text-6xl font-light tracking-[0.15em] uppercase text-white font-cinzel block mb-3"
-              >
-                God is
-              </motion.span>
-              <motion.span
-                initial={{ opacity: 0, y: 30, filter: 'blur(12px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ delay: 2.0, duration: 2.0, ease: "easeOut" }}
-                className="font-playfair italic text-7xl md:text-[10rem] leading-none text-white drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]"
-              >
-                Frequency
-              </motion.span>
-            </h1>
+            <motion.h1
+              className="flex flex-col items-center"
+              animate={{ scale: [1, 1.015, 1] }}
+              transition={{ delay: 3.5, duration: 4, ease: "easeInOut", repeat: Infinity }}
+            >
+              {/* "God" and "is" as separate staggered words */}
+              <span className="flex items-center justify-center gap-[0.3em] mb-3">
+                {["God", "is"].map((word, wi) => (
+                  <motion.span
+                    key={word}
+                    initial={{ opacity: 0, y: 15, letterSpacing: '0.3em' }}
+                    animate={{ opacity: 0.7, y: 0, letterSpacing: '0.15em' }}
+                    transition={{ delay: 1.0 + wi * 0.2, duration: 1.5, ease: "easeOut" }}
+                    className="text-4xl md:text-6xl font-light uppercase text-white font-cinzel"
+                  >
+                    {word}
+                  </motion.span>
+                ))}
+              </span>
+              {/* "Frequency" — per-character stagger with blur-deblur */}
+              <span className="flex items-center justify-center">
+                {"Frequency".split("").map((char, i) => (
+                  <motion.span
+                    key={i}
+                    initial={{ opacity: 0, filter: 'blur(20px)', y: 40 }}
+                    animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+                    transition={{ delay: 2.0 + i * 0.07, duration: 1.2, ease: [0.25, 0.1, 0.25, 1] }}
+                    className="font-playfair italic text-7xl md:text-[10rem] leading-none metal-text drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]"
+                  >
+                    {char}
+                  </motion.span>
+                ))}
+              </span>
+            </motion.h1>
           </motion.div>
 
           {/* Scroll hint */}
