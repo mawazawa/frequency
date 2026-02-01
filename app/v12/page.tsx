@@ -564,7 +564,7 @@ export default function V12Page() {
     const h = window.innerHeight;
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.35, 0.6, 0.65);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.18, 0.4, 0.85);
     composer.addPass(bloomPass);
 
     sceneRef.current = { renderer, scene, camera, composer, bloomPass, fieldMaterial: fieldMat, fieldPoints, etherMaterial: etherMat, etherPoints };
@@ -677,7 +677,7 @@ export default function V12Page() {
 
       // Modulate bloom with audio volume
       if (s.bloomPass) {
-        s.bloomPass.strength = 0.25 + vol * 0.2;
+        s.bloomPass.strength = 0.15 + vol * 0.15;
       }
 
       if (s.composer) {
