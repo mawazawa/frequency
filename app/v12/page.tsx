@@ -10,6 +10,8 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import clsx from 'clsx';
 import Link from 'next/link';
 import { useMicAudio } from '@/hooks/useMicAudio';
+import { useTrailerAudio, TRAILER_SUBTITLES } from '@/hooks/useTrailerAudio';
+import type { SubtitleCue } from '@/hooks/useTrailerAudio';
 
 // ═══════════════════════════════════════════════════════════════════
 // FONTS & STYLES
@@ -454,11 +456,17 @@ export default function V12Page() {
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [modeId, setModeId] = useState<ModeId>('genesis');
-  const [showMicPrompt, setShowMicPrompt] = useState(true);
+  const [showIntro, setShowIntro] = useState(true);
+  const [introPhase, setIntroPhase] = useState<'waiting' | 'playing' | 'done'>('waiting');
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<ModeId | null>(null);
-  const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
+  const { isReady: micReady, startAudio: startMicAudio, getFrequencyData: getMicFrequencyData } = useMicAudio();
+  const trailer = useTrailerAudio();
+  
+  // Unified audio: during trailer playback, use trailer audio; after, use mic (if enabled)
+  const audioReady = trailer.isPlaying || micReady;
+  const getFrequencyData = trailer.isPlaying ? trailer.getFrequencyData : getMicFrequencyData;
 
   // Text scroll transforms — fades out and drifts up with parallax
   const textOpacity = useTransform(scrollY, [0, 150], [1, 0]);
@@ -702,14 +710,35 @@ export default function V12Page() {
     return () => window.removeEventListener("scroll", h);
   }, []);
 
-  const handleEnableAudio = useCallback(() => { 
-    startAudio(); 
-    setShowMicPrompt(false);
-  }, [startAudio]);
+  // Start the trailer intro
+  const handleStartTrailer = useCallback(() => {
+    trailer.startTrailer();
+    setIntroPhase('playing');
+  }, [trailer]);
 
-  const handleDismissPrompt = useCallback(() => {
-    setShowMicPrompt(false);
-  }, []);
+  // Skip the trailer
+  const handleSkipTrailer = useCallback(() => {
+    trailer.skipTrailer();
+    setIntroPhase('done');
+    setShowIntro(false);
+  }, [trailer]);
+
+  // When trailer ends naturally, transition out
+  useEffect(() => {
+    if (trailer.isEnded && introPhase === 'playing') {
+      // Brief pause before dismissing to let the final visual settle
+      const timer = setTimeout(() => {
+        setIntroPhase('done');
+        setShowIntro(false);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [trailer.isEnded, introPhase]);
+
+  // Legacy handlers for mic button in nav
+  const handleEnableAudio = useCallback(() => { 
+    startMicAudio(); 
+  }, [startMicAudio]);
 
   const quizQuestions = [
     {
@@ -769,54 +798,94 @@ export default function V12Page() {
     <div className="min-h-screen bg-black text-white font-sans selection:bg-white/20 overflow-x-hidden">
       <FontStyles />
 
-      {/* ── Mic Prompt Overlay ── */}
+      {/* ── Trailer Intro Overlay ── */}
       <AnimatePresence>
-        {showMicPrompt && !audioReady && (
+        {showIntro && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
+            transition={{ duration: 1.2 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black"
           >
+            {/* Subtle background texture */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <img src="/images/mushroom-cluster.jpg" alt="" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] max-w-[600px] opacity-[0.12] object-contain" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.02)_0%,transparent_70%)]" />
             </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
-              className="relative z-10 flex flex-col items-center text-center px-8 max-w-md"
-            >
-              <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-4 tracking-wide">
-                Find Your Frequency
-              </h2>
-              <p className="text-white/50 text-sm leading-relaxed mb-10 max-w-xs">
-                This experience reacts to your voice and the sounds around you. Enable your microphone to bring the field to life.
-              </p>
-
-              <button
-                onClick={handleEnableAudio}
-                className="group relative w-28 h-28 rounded-full border-2 border-white/30 bg-white/5 backdrop-blur-xl flex items-center justify-center hover:border-white/60 hover:bg-white/10 transition-all duration-500 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)] mb-6"
+            {/* Pre-play state: tap to begin */}
+            {introPhase === 'waiting' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.8 }}
+                className="relative z-10 flex flex-col items-center text-center px-8"
               >
-                <div className="absolute inset-0 rounded-full border border-white/10 animate-ping opacity-20" />
-                <div className="flex flex-col items-center gap-2">
-                  <svg className="w-8 h-8 text-white/80 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                <button
+                  onClick={handleStartTrailer}
+                  className="group relative w-24 h-24 rounded-full border border-white/20 bg-white/[0.03] flex items-center justify-center hover:border-white/40 hover:bg-white/[0.06] transition-all duration-700 mb-8"
+                >
+                  <div className="absolute inset-0 rounded-full border border-white/5 animate-ping opacity-30" style={{ animationDuration: '3s' }} />
+                  <svg className="w-8 h-8 text-white/60 group-hover:text-white transition-colors ml-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
                   </svg>
-                  <span className="text-[9px] uppercase tracking-[0.3em] text-white/50 group-hover:text-white/80 transition-colors">Enable</span>
-                </div>
-              </button>
+                </button>
+                <p className="text-[10px] uppercase tracking-[0.4em] text-white/25 font-cinzel">
+                  Tap to tune in
+                </p>
+              </motion.div>
+            )}
 
-              <button
-                onClick={handleDismissPrompt}
-                className="text-white/30 hover:text-white/60 text-xs uppercase tracking-[0.2em] transition-colors"
-              >
-                Continue without audio →
-              </button>
-            </motion.div>
+            {/* Playing state: subtitles + skip button */}
+            {introPhase === 'playing' && (
+              <>
+                {/* Subtitle display */}
+                <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                  <AnimatePresence mode="wait">
+                    {trailer.currentSubtitle && (
+                      <motion.div
+                        key={trailer.currentSubtitle.text}
+                        initial={{ opacity: 0, y: 10, filter: 'blur(8px)' }}
+                        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                        exit={{ opacity: 0, y: -10, filter: 'blur(4px)' }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                        className="text-center px-8 max-w-2xl"
+                      >
+                        <p className={`font-playfair leading-relaxed whitespace-pre-line ${
+                          trailer.currentSubtitle.style === 'distant' 
+                            ? 'text-white/40 text-lg md:text-2xl italic' 
+                            : trailer.currentSubtitle.style === 'present'
+                            ? 'text-white/70 text-xl md:text-3xl italic'
+                            : 'text-white text-2xl md:text-4xl font-cinzel not-italic tracking-[0.15em] uppercase drop-shadow-[0_0_40px_rgba(255,255,255,0.3)]'
+                        }`}>
+                          {trailer.currentSubtitle.text}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Skip intro button */}
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 3, duration: 0.5 }}
+                  onClick={handleSkipTrailer}
+                  className="absolute bottom-8 right-8 z-20 text-white/20 hover:text-white/50 text-[10px] uppercase tracking-[0.3em] transition-colors duration-300 font-cinzel"
+                >
+                  Skip intro →
+                </motion.button>
+
+                {/* Progress bar */}
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] z-20">
+                  <motion.div 
+                    className="h-full bg-white/20"
+                    style={{ width: `${(trailer.currentTime / 35.2) * 100}%` }}
+                  />
+                </div>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -848,7 +917,7 @@ export default function V12Page() {
         </div>
         <div className="flex gap-8 items-center">
           <button onClick={handleEnableAudio} className="relative" title="Enable microphone">
-            <WaveIcon active={audioReady} />
+            <WaveIcon active={micReady} />
           </button>
           <ShoppingBag className="w-5 h-5 hover:text-mycelium-gold transition-colors cursor-pointer" />
         </div>
@@ -930,8 +999,8 @@ export default function V12Page() {
                 ))}
               </div>
               <div className="hidden md:flex items-center gap-3">
-                <Activity className={`w-4 h-4 ${audioReady ? 'text-white animate-pulse' : 'text-gray-600'}`} />
-                <span className="text-[10px] uppercase tracking-widest text-gray-500">{audioReady ? 'Listening' : 'Tap mic to activate'}</span>
+                <Activity className={`w-4 h-4 ${micReady ? 'text-white animate-pulse' : 'text-gray-600'}`} />
+                <span className="text-[10px] uppercase tracking-widest text-gray-500">{micReady ? 'Listening' : 'Tap mic to activate'}</span>
               </div>
             </div>
           </div>
