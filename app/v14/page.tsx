@@ -31,6 +31,8 @@ export default function V12Page() {
   const [modeId, setModeId] = useState<ModeId>('genesis');
   const [showIntro, setShowIntro] = useState(true);
   const [introPhase, setIntroPhase] = useState<'waiting' | 'playing' | 'done'>('waiting');
+  const [flashOpacity, setFlashOpacity] = useState(0);
+  const [bigBangFired, setBigBangFired] = useState(false);
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<ModeId | null>(null);
@@ -296,15 +298,28 @@ export default function V12Page() {
     setShowIntro(false);
   }, [trailer]);
 
-  // When trailer ends naturally, transition out
+  // When trailer ends naturally, trigger big bang then transition out
   useEffect(() => {
     if (trailer.isEnded && introPhase === 'playing') {
-      // Brief pause before dismissing to let the final visual settle
+      // Fire the big bang flash
+      setBigBangFired(true);
+      setFlashOpacity(1);
+      
+      // Rapid flash decay
+      const flashDecay = setInterval(() => {
+        setFlashOpacity(prev => {
+          const next = prev * 0.85;
+          if (next < 0.01) { clearInterval(flashDecay); return 0; }
+          return next;
+        });
+      }, 30);
+
+      // Dismiss intro overlay after flash peaks
       const timer = setTimeout(() => {
         setIntroPhase('done');
         setShowIntro(false);
-      }, 2500);
-      return () => clearTimeout(timer);
+      }, 1500);
+      return () => { clearTimeout(timer); clearInterval(flashDecay); };
     }
   }, [trailer.isEnded, introPhase]);
 
@@ -385,6 +400,14 @@ export default function V12Page() {
         )}
       </AnimatePresence>
 
+      {/* ── Big Bang Flash Overlay ── */}
+      {flashOpacity > 0 && (
+        <div
+          className="fixed inset-0 z-[99] pointer-events-none bg-white"
+          style={{ opacity: flashOpacity }}
+        />
+      )}
+
       {/* ── WebGL Canvas (behind all content, above ambient imagery) ── */}
       <div ref={canvasContainerRef} className="fixed inset-0 z-[2] pointer-events-none" />
 
@@ -431,21 +454,21 @@ export default function V12Page() {
               animate={{ scale: [1, 1.015, 1] }}
               transition={{ delay: 3.5, duration: 4, ease: "easeInOut", repeat: Infinity }}
             >
-              {/* "God" and "is" as separate staggered words */}
-              <span className="flex items-center justify-center gap-[0.3em] mb-3">
+              {/* "God is" — small, understated */}
+              <span className="flex items-center justify-center gap-[0.25em] mb-2">
                 {["God", "is"].map((word, wi) => (
                   <motion.span
                     key={word}
-                    initial={{ opacity: 0, y: 15, letterSpacing: '0.3em' }}
-                    animate={{ opacity: 0.7, y: 0, letterSpacing: '0.15em' }}
+                    initial={{ opacity: 0, y: 10, letterSpacing: '0.4em' }}
+                    animate={{ opacity: 0.4, y: 0, letterSpacing: '0.25em' }}
                     transition={{ delay: 1.0 + wi * 0.2, duration: 1.5, ease: "easeOut" }}
-                    className="text-4xl md:text-6xl font-light uppercase text-white font-cinzel"
+                    className="text-sm md:text-lg font-light uppercase text-white/40 font-cinzel tracking-[0.25em]"
                   >
                     {word}
                   </motion.span>
                 ))}
               </span>
-              {/* "Frequency" — per-character stagger with blur-deblur */}
+              {/* "Frequency" — matte black metal, dominant */}
               <span className="flex items-center justify-center">
                 {"Frequency".split("").map((char, i) => (
                   <motion.span
@@ -453,7 +476,7 @@ export default function V12Page() {
                     initial={{ opacity: 0, filter: 'blur(20px)', y: 40 }}
                     animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
                     transition={{ delay: 2.0 + i * 0.07, duration: 1.2, ease: [0.25, 0.1, 0.25, 1] }}
-                    className="font-playfair italic text-7xl md:text-[10rem] leading-none metal-text drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]"
+                    className="font-playfair italic text-7xl md:text-[10rem] leading-none metal-text"
                   >
                     {char}
                   </motion.span>

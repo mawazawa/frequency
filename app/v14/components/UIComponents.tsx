@@ -14,10 +14,16 @@ export const FontStyles = () => (
     .font-cinzel { font-family: 'Cinzel', serif; }
     .font-playfair { font-family: 'Playfair Display', serif; }
     .metal-text {
-      background-image: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 48%, #475569 50%, #94A3B8 100%);
+      background-image: linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 35%, #0a0a0a 50%, #1e1e1e 65%, #2a2a2a 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));
+      filter: drop-shadow(0px 1px 2px rgba(255,255,255,0.08)) drop-shadow(0px 4px 8px rgba(0,0,0,0.9));
+    }
+    .metal-text-light {
+      background-image: linear-gradient(180deg, #555 0%, #2a2a2a 40%, #111 50%, #222 60%, #444 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0px 1px 3px rgba(255,255,255,0.05));
     }
     @keyframes shimmer {
       0% { transform: translateX(-100%); }

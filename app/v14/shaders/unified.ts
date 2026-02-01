@@ -107,15 +107,15 @@ export const unifiedVertexShader = /* glsl */ `
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
 
     // ── Point size ──
-    float basePtSize = mix(1.5, 2.2, m);
-    float audioPtPulse = audioEnergy * mix(0.3, 1.5, m);
+    float basePtSize = mix(0.8, 1.2, m);
+    float audioPtPulse = audioEnergy * mix(0.15, 0.8, m);
     float ptSize = basePtSize + audioPtPulse;
 
     float nodal = 1.0 - smoothstep(0.0, 0.15, abs(cVal));
-    float nodalBoost = nodal * m * (1.0 + uBass * 2.0);
-    ptSize += nodalBoost * 1.5;
+    float nodalBoost = nodal * m * (1.0 + uBass * 1.2);
+    ptSize += nodalBoost * 0.8;
 
-    gl_PointSize = ptSize * uFadeIn * (6.0 / -mvPosition.z);
+    gl_PointSize = ptSize * uFadeIn * (5.0 / -mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -174,7 +174,7 @@ export const etherVertexShader = /* glsl */ `
     pos.z += uMid*aRandom.z*5.0;
     pos.y *= mix(0.08, 1.0, pow(uMorph, 2.0));
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = (1.5+aRandom.z+uMid*2.0)*(6.0/-mvPosition.z);
+    gl_PointSize = (0.8+aRandom.z*0.5+uMid*1.0)*(4.0/-mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
