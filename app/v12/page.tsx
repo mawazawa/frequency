@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Waves, Disc, Sprout, Activity } from 'lucide-react';
+import { ArrowRight, ChevronDown, ShoppingBag, Menu, Star, Check, Activity } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -9,442 +9,21 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import clsx from 'clsx';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useMicAudio } from '@/hooks/useMicAudio';
+import { useTrailerAudio } from '@/hooks/useTrailerAudio';
 
-// ═══════════════════════════════════════════════════════════════════
-// FONTS & STYLES
-// ═══════════════════════════════════════════════════════════════════
-const FontStyles = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@200;300;400&display=swap');
-    .font-cinzel { font-family: 'Cinzel', serif; }
-    .font-playfair { font-family: 'Playfair Display', serif; }
-    .metal-text {
-      background-image: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 48%, #475569 50%, #94A3B8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));
-    }
-    @keyframes shimmer {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
-    }
-    @keyframes wave {
-      0%, 100% { height: 4px; opacity: 0.5; }
-      50% { height: 16px; opacity: 1; }
-    }
-    .animate-wave { animation: wave ease-in-out infinite; }
-  `}</style>
-);
-
-// ═══════════════════════════════════════════════════════════════════
-// MODE CONFIGURATION
-// ═══════════════════════════════════════════════════════════════════
-const MODES = {
-  genesis: {
-    id: 'genesis',
-    label: 'Genesis',
-    hz: '432 Hz',
-    color1: [1.0, 0.5, 0.2],
-    color2: [1.0, 0.9, 0.8],
-    bg: [0.02, 0.008, 0.004],
-    tension: 0.15,
-    friction: 0.85,
-    n: 3.0,
-    m: 5.0,
-    shapeFn: 0,
-  },
-  revelation: {
-    id: 'revelation',
-    label: 'Revelation',
-    hz: '528 Hz',
-    color1: [0.0, 0.7, 0.6],
-    color2: [0.8, 0.9, 1.0],
-    bg: [0.0, 0.031, 0.039],
-    tension: 0.2,
-    friction: 0.8,
-    n: 5.0,
-    m: 7.0,
-    shapeFn: 1,
-  },
-  ascension: {
-    id: 'ascension',
-    label: 'Ascension',
-    hz: '963 Hz',
-    color1: [0.5, 0.0, 1.0],
-    color2: [1.0, 0.6, 0.2],
-    bg: [0.039, 0.0, 0.059],
-    tension: 0.1,
-    friction: 0.9,
-    n: 7.0,
-    m: 11.0,
-    shapeFn: 2,
-  }
-} as const;
-
-type ModeId = keyof typeof MODES;
-
-// ═══════════════════════════════════════════════════════════════════
-// SPRING PHYSICS
-// ═══════════════════════════════════════════════════════════════════
-class Spring {
-  val: number; target: number; vel: number;
-  constructor(v: number) { this.val = v; this.target = v; this.vel = 0; }
-  update(target: number, tension: number, friction: number) {
-    this.target = target;
-    this.vel += (this.target - this.val) * tension;
-    this.vel *= friction;
-    this.val += this.vel;
-    return this.val;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// UNIFIED SHADER — Single particle system: Lines → Chladni Field
-// ═══════════════════════════════════════════════════════════════════
-const unifiedVertexShader = /* glsl */ `
-  uniform float uTime;
-  uniform float uBass;
-  uniform float uMid;
-  uniform float uHigh;
-  uniform float uVolume;
-  uniform float uMorph;        // 0 = lines, 1 = full Chladni field
-  uniform float uFadeIn;       // 0→1 over first 2s
-  uniform float uAudioActive;
-  uniform float uN;
-  uniform float uM;
-  uniform int uShapeFn;
-  uniform vec3 uColor1;
-  uniform vec3 uColor2;
-
-  varying float vDisplacement;
-  varying vec2 vUv;
-  varying float vDist;
-  varying float vMorph;
-  varying float vEnvelope;
-
-  // ── Hash noise ──
-  float hash(vec2 p) {
-    return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x))));
-  }
-  float noise(vec2 x) {
-    vec2 i = floor(x); vec2 f = fract(x);
-    float a = hash(i); float b = hash(i + vec2(1,0));
-    float c = hash(i + vec2(0,1)); float d = hash(i + vec2(1,1));
-    vec2 u = f*f*(3.0-2.0*f);
-    return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
-  }
-
-  // ── Chladni pattern ──
-  float chladni(vec2 p, float n, float m, float a, float b) {
-    float PI = 3.14159265;
-    return a*sin(PI*n*p.x)*sin(PI*m*p.y) + b*sin(PI*m*p.x)*sin(PI*n*p.y);
-  }
-
-  void main() {
-    vUv = uv;
-    vMorph = uMorph;
-    vec2 pos = uv * 2.0 - 1.0;  // -1 to 1
-    vDist = length(pos);
-    float t = uTime;
-
-    // ── Shape envelope (tapers edges for organic form) ──
-    float edgeFadeX = 1.0 - pow(abs(pos.x), 2.4);
-    float edgeFadeY = 1.0 - pow(abs(pos.y), 2.0);
-    float envelope = edgeFadeX * edgeFadeY;
-    vEnvelope = envelope;
-
-    // ════════════════════════════════════════════
-    // LINE DISPLACEMENT (morph = 0)
-    // Terrain hills + breathing + audio ripples
-    // Applied to Y axis for landscape silhouette
-    // ════════════════════════════════════════════
-
-    // Multi-octave terrain (static landscape shape)
-    float terrain = 0.0;
-    terrain += noise(pos * 2.0 + vec2(0.3, 0.0)) * 1.2;
-    terrain += noise(pos * 4.0 + vec2(1.7, 0.5)) * 0.5;
-    terrain += noise(pos * 8.0 + vec2(-2.1, 1.0)) * 0.2;
-    terrain *= envelope;
-
-    // Gentle breathing undulation
-    float breath = sin(t * 0.8 + pos.x * 6.28) * 0.08
-                 + sin(t * 0.5 + pos.y * 6.28) * 0.05;
-    breath *= envelope;
-
-    // Audio-reactive ripples in line mode
-    float dist = length(pos);
-    float bassRipple = sin(dist * 6.0 - t * 3.0) * uBass * 0.8;
-    float midRipple  = sin(dist * 12.0 - t * 5.0) * uMid * 0.5
-                     + sin(dist * 18.0 - t * 7.0 + 1.0) * uMid * 0.25;
-    float highRipple = noise(vec2(pos.x * 30.0 + t * 3.0, pos.y * 20.0)) * uHigh * 0.3;
-    float audioLine = (bassRipple + midRipple + highRipple) * envelope;
-
-    float lineDisp = terrain * 0.7 + breath + audioLine;
-
-    // ════════════════════════════════════════════
-    // FIELD DISPLACEMENT (morph = 1)
-    // Chladni plate with full audio reactivity
-    // Applied to Z axis for 3D plate
-    // ════════════════════════════════════════════
-
-    float n = uN + uBass * 2.0;
-    float m = uM + uMid * 3.0;
-    float chladni1 = chladni(pos, n, m, 1.0, -1.0);
-    float chladni2 = chladni(pos, n + 2.0, m + 1.0, 0.5, 0.5);
-    float fieldDisp = 0.0;
-
-    if (uShapeFn == 0) {
-      // Genesis: warm, organic
-      fieldDisp = chladni1 * (0.5 + uVolume * 2.5);
-      fieldDisp += chladni2 * uBass * 0.5;
-      fieldDisp *= 1.0 + sin(t * 0.5) * 0.15;
-    } else if (uShapeFn == 1) {
-      // Revelation: crystalline, geometric
-      float crystal = chladni(pos, floor(n), floor(m), 1.0, 1.0);
-      vec2 grid = abs(fract(pos * (3.0 + uBass)) - 0.5);
-      float gridP = 1.0 - max(grid.x, grid.y);
-      fieldDisp = mix(crystal, gridP, 0.5) * (0.5 + uVolume * 3.0);
-      fieldDisp *= cos(t * 1.5 + vDist * 4.0);
-      fieldDisp += uMid * noise(pos * 10.0 + t) * 1.5;
-    } else {
-      // Ascension: turbulent, expansive
-      float turb = chladni1 + 0.5 * chladni2;
-      float n1 = noise(pos * 4.0 + t * 0.5);
-      fieldDisp = (turb * 0.6 + n1 * 0.4) * (0.5 + uVolume * 4.0);
-      fieldDisp += sin(vDist * 8.0 - t) * uMid * 2.0;
-      fieldDisp += uHigh * noise(pos * 20.0 + t * 2.0) * 1.5;
-    }
-
-    // ════════════════════════════════════════════
-    // MORPH: blend and position
-    // ════════════════════════════════════════════
-
-    vec3 newPos = position;
-
-    // Y compression: tight bands at morph=0, full spread at morph=1
-    float yScale = mix(0.08, 1.0, uMorph);
-    newPos.y *= yScale;
-
-    // Line displacement → Y (terrain shape, fades out with morph)
-    newPos.y += lineDisp * (1.0 - uMorph);
-
-    // Field displacement → Z (Chladni plate, fades in with morph)
-    newPos.z += fieldDisp * uMorph;
-
-    // Subtle band noise during transition (keeps visual interest)
-    float bandNoise = noise(pos * 5.0 + t) * 0.3 * uMorph * (1.0 - uMorph) * 4.0; // peaks at morph=0.5
-    newPos.y += bandNoise;
-
-    // Track total displacement magnitude for coloring
-    float totalDisp = abs(lineDisp * (1.0 - uMorph)) + abs(fieldDisp * uMorph);
-    vDisplacement = totalDisp;
-
-    // ── Point size ──
-    vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
-    // Lines: small tight points; Field: larger reactive points
-    float lineSize = 1.8 + uMid * 1.0;
-    float fieldSize = 2.0 + uMid * 4.0 + vDisplacement * 1.5;
-    float baseSize = mix(lineSize, fieldSize, uMorph);
-    gl_PointSize = baseSize * (8.0 / -mvPosition.z);
-
-    // Fade in
-    gl_PointSize *= uFadeIn;
-
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const unifiedFragmentShader = /* glsl */ `
-  uniform vec3 uColor1;
-  uniform vec3 uColor2;
-  uniform float uMid;
-  uniform float uFadeIn;
-  uniform float uAudioActive;
-
-  varying float vDisplacement;
-  varying float vDist;
-  varying float vMorph;
-  varying float vEnvelope;
-
-  void main() {
-    // Circular point shape
-    if (length(gl_PointCoord - 0.5) > 0.5) discard;
-
-    // ── Line color: silver/white with displacement brightness ──
-    float brightness = 0.75 + vDisplacement * 0.5;
-    brightness = min(brightness, 1.0);
-    vec3 lineColor = vec3(brightness, brightness, brightness * 1.02);
-    float lineGlow = 1.8; // bright luminous lines
-
-    // ── Field color: mode-specific with audio glow ──
-    vec3 fieldColor = mix(uColor1, uColor2, smoothstep(0.0, 1.5, vDisplacement));
-    float fieldGlow = 1.0 + uMid * 1.5;
-
-    // ── Blend by morph ──
-    vec3 color = mix(lineColor * lineGlow, fieldColor * fieldGlow, vMorph);
-
-    // ── Alpha ──
-    float edgeAlpha = 1.0 - smoothstep(0.6, 1.0, vDist);
-    // Lines: semi-transparent, slightly boosted by displacement
-    float lineAlpha = (vEnvelope * 0.3 + 0.7) * 0.85;
-    lineAlpha += vDisplacement * 0.3 * uAudioActive;
-    // Field: full opacity with edge falloff
-    float fieldAlpha = 1.0;
-    float alpha = mix(lineAlpha, fieldAlpha, vMorph) * edgeAlpha;
-    alpha *= uFadeIn;
-    alpha = clamp(alpha, 0.0, 1.0);
-
-    gl_FragColor = vec4(color, alpha);
-  }
-`;
-
-// ═══════════════════════════════════════════════════════════════════
-// SHADERS — Ether Background Particles
-// ═══════════════════════════════════════════════════════════════════
-const etherVertexShader = /* glsl */ `
-  uniform float uTime; uniform float uMorph; uniform float uMid;
-  attribute vec3 aRandom;
-  void main() {
-    vec3 pos = position;
-    pos.x += sin(uTime*0.5*aRandom.x)*0.5;
-    pos.y += cos(uTime*0.3*aRandom.y)*0.5;
-    pos.z += uMid*aRandom.z*5.0;
-    pos.y *= mix(0.08, 1.0, pow(uMorph, 2.0));
-    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = (1.5+aRandom.z+uMid*2.0)*(6.0/-mvPosition.z);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const etherFragmentShader = /* glsl */ `
-  uniform vec3 uColor;
-  void main() {
-    if (length(gl_PointCoord-0.5)>0.5) discard;
-    gl_FragColor = vec4(uColor, 0.35);
-  }
-`;
-
-// ═══════════════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════════════
-const smoothstep = (e0: number, e1: number, x: number) => {
-  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
-};
-
-// ═══════════════════════════════════════════════════════════════════
-// UI COMPONENTS
-// ═══════════════════════════════════════════════════════════════════
-const WaveIcon = ({ active }: { active: boolean }) => (
-  <div className="flex items-center justify-center gap-[3px] w-6 h-6">
-    {[1,2,3,4,5].map(i => (
-      <div key={i}
-        className={`w-1 bg-white rounded-full transition-all duration-300 ${active ? 'animate-wave' : 'h-1 opacity-50'}`}
-        style={{ height: active ? undefined : '4px', animationDelay: `${i*0.1}s`, animationDuration: '0.8s' }}
-      />
-    ))}
-  </div>
-);
-
-const GlassButton = ({ onClick, children, className = '', active = false }: {
-  onClick?: () => void; children: React.ReactNode; className?: string; active?: boolean;
-}) => (
-  <button onClick={onClick}
-    className={clsx(
-      "relative group overflow-hidden backdrop-blur-xl border transition-all duration-300 rounded-2xl",
-      active ? "bg-white/10 border-white/40 shadow-[0_0_20px_rgba(255,255,255,0.15)]"
-             : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20",
-      className
-    )}>
-    <div className="absolute inset-[1px] rounded-2xl border border-white/20 pointer-events-none opacity-50" />
-    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
-    <div className="relative z-10">{children}</div>
-  </button>
-);
-
-const ProductBottle = () => (
-  <div className="relative w-full h-[60vh] md:h-[80vh] flex items-center justify-center">
-    <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 1, ease: "easeOut" }}
-      className="relative z-10 w-64 md:w-80 aspect-[3/5] rounded-[40px] shadow-2xl overflow-hidden backdrop-blur-sm border border-white/20"
-      style={{ background: "linear-gradient(135deg, rgba(40,40,40,0.95) 0%, rgba(20,20,20,1) 100%)", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.1)" }}>
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] h-16 bg-[#111] border-b border-white/10 z-20" />
-      <div className="absolute inset-4 top-24 border border-white/10 rounded-[20px] p-6 flex flex-col justify-between">
-        <div>
-          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-mycelium-gold to-transparent opacity-50 mb-4" />
-          <h2 className="text-mycelium-gold font-serif text-3xl text-center tracking-wide">CALM DOSE</h2>
-          <p className="text-white/40 text-[10px] text-center uppercase tracking-[0.2em] mt-2">Functional Mushroom Blend</p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between text-[10px] text-white/30 font-mono border-t border-white/5 pt-2">
-            <span>BATCH: 004</span><span>180MG</span>
-          </div>
-          <div className="w-full h-32 opacity-20 relative overflow-hidden rounded-lg">
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-50" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-mycelium-gold blur-[60px]" />
-          </div>
-        </div>
-      </div>
-      <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
-    </motion.div>
-    <div className="absolute bottom-[10%] w-64 h-8 bg-black/20 blur-[20px] rounded-[100%]" />
-  </div>
-);
-
-const Accordion = ({ title, children }: { title: string; children: React.ReactNode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  return (
-    <div className="border-b border-white/10 py-4">
-      <button onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between w-full text-left group">
-        <span className="font-sans font-medium text-sm text-white/80 group-hover:text-white transition-colors">{title}</span>
-        <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="pt-4 pb-2 text-white/60 text-sm leading-relaxed">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-const PurchaseWidget = () => {
-  const [subType, setSubType] = useState<'sub'|'once'>('sub');
-  return (
-    <div className="mt-8 space-y-6">
-      <div className="bg-white/5 border border-white/10 rounded-lg p-1 shadow-sm backdrop-blur-md">
-        <button onClick={() => setSubType('sub')} className={clsx("w-full flex items-center justify-between px-4 py-3 rounded-md transition-all duration-300", subType==='sub' ? "bg-white/10 shadow-sm border border-white/10" : "hover:bg-white/5")}>
-          <div className="flex items-center gap-3">
-            <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType==='sub' ? "border-mycelium-gold bg-mycelium-gold" : "border-white/30")}>
-              {subType==='sub' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
-            </div>
-            <div className="text-left">
-              <span className="block font-medium text-sm text-white">Subscribe & Save 15%</span>
-              <span className="block text-xs text-white/50">Delivered monthly • Cancel anytime</span>
-            </div>
-          </div>
-          <span className="font-serif font-medium text-white">$98.00</span>
-        </button>
-        <button onClick={() => setSubType('once')} className={clsx("w-full flex items-center justify-between px-4 py-3 rounded-md transition-all duration-300 mt-1", subType==='once' ? "bg-white/10 shadow-sm border border-white/10" : "hover:bg-white/5")}>
-          <div className="flex items-center gap-3">
-            <div className={clsx("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", subType==='once' ? "border-mycelium-gold bg-mycelium-gold" : "border-white/30")}>
-              {subType==='once' && <div className="w-1.5 h-1.5 bg-black rounded-full" />}
-            </div>
-            <div className="text-left"><span className="block font-medium text-sm text-white">One-time Purchase</span></div>
-          </div>
-          <span className="font-serif font-medium text-white">$115.00</span>
-        </button>
-      </div>
-      <button className="w-full bg-white text-black py-4 px-6 rounded-full font-medium hover:bg-white/90 transition-all flex items-center justify-between group shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-        <span>Add to Cart</span>
-        <span className="flex items-center gap-2">{subType==='sub'?'$98.00':'$115.00'}<ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></span>
-      </button>
-      <p className="text-center text-xs text-white/40">Free shipping on orders over $100. 30-day money back guarantee.</p>
-    </div>
-  );
-};
+// ── Extracted modules ──
+import { MODES, type ModeId, Spring, smoothstep, QUIZ_QUESTIONS } from './config';
+import {
+  unifiedVertexShader, unifiedFragmentShader,
+  etherVertexShader, etherFragmentShader,
+} from './shaders/unified';
+import {
+  FontStyles, WaveIcon, GlassButton, ProductBottle,
+  Accordion, PurchaseWidget, SonicInfusionSection,
+} from './components/UIComponents';
+import TrailerIntro from './components/TrailerIntro';
 
 // ═══════════════════════════════════════════════════════════════════
 // MAIN PAGE
@@ -454,15 +33,56 @@ export default function V12Page() {
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [modeId, setModeId] = useState<ModeId>('genesis');
-  const [showMicPrompt, setShowMicPrompt] = useState(true);
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<ModeId | null>(null);
-  const { isReady: audioReady, startAudio, getFrequencyData } = useMicAudio();
 
-  // Text scroll transforms — fades out and drifts up with parallax
+  // ── Intro phase state machine ──
+  // 'waiting' → user sees play/skip screen
+  // 'playing' → trailer audio is playing with subtitles
+  // 'done'    → trailer finished or skipped, main experience active
+  const [introPhase, setIntroPhase] = useState<'waiting' | 'playing' | 'done'>('waiting');
+
+  // ── Audio hooks ──
+  const micAudio = useMicAudio();
+  const trailerAudio = useTrailerAudio();
+
+  // When trailer ends, transition to 'done' and enable mic
+  useEffect(() => {
+    if (introPhase === 'playing' && trailerAudio.isEnded) {
+      setIntroPhase('done');
+    }
+  }, [introPhase, trailerAudio.isEnded]);
+
+  // Use trailer audio during playback, mic audio after
+  const getActiveFrequencyData = useCallback(() => {
+    if (introPhase === 'playing' && trailerAudio.isPlaying) {
+      return trailerAudio.getFrequencyData();
+    }
+    return micAudio.getFrequencyData();
+  }, [introPhase, trailerAudio, micAudio]);
+
+  const audioIsActive = introPhase === 'playing' ? trailerAudio.isPlaying : micAudio.isReady;
+
+  // ── Intro handlers ──
+  const handlePlay = useCallback(async () => {
+    setIntroPhase('playing');
+    trailerAudio.startTrailer();
+  }, [trailerAudio]);
+
+  const handleIntroDone = useCallback(() => {
+    trailerAudio.skipTrailer();
+    setIntroPhase('done');
+  }, [trailerAudio]);
+
+  const handleEnableAudio = useCallback(() => {
+    micAudio.startAudio();
+  }, [micAudio]);
+
+  // Text scroll transforms
   const textOpacity = useTransform(scrollY, [0, 150], [1, 0]);
   const textY = useTransform(scrollY, [0, 400], [0, -120]);
+  const textClip = useTransform(scrollY, [0, 200], ["inset(0% 0 0 0)", "inset(100% 0 0 0)"]);
 
   const sceneRef = useRef<{
     renderer?: THREE.WebGLRenderer;
@@ -506,7 +126,6 @@ export default function V12Page() {
     container.appendChild(renderer.domElement);
 
     // ── UNIFIED PARTICLE SYSTEM ──
-    // Single PlaneGeometry 220×220 that morphs from lines to Chladni field
     const fieldGeo = new THREE.PlaneGeometry(8, 8, 220, 220);
     const fieldMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -603,8 +222,8 @@ export default function V12Page() {
       const mode = MODES[stateRef.current.modeId];
       const p = physicsRef.current;
 
-      // ── Audio ──
-      const audio = getFrequencyData();
+      // ── Audio (from whichever source is active) ──
+      const audio = getActiveFrequencyData();
       const tension = mode.tension;
       const friction = mode.friction;
       const bass = p.bass.update(audio.bass, tension, friction);
@@ -615,10 +234,9 @@ export default function V12Page() {
       const ambientVol = Math.sin(elapsed * 1.5) * 0.04 + 0.07;
       const ambientMid = Math.cos(elapsed * 1.2) * 0.04;
       const effectiveVol = Math.max(vol, ambientVol);
-      const effectiveMid = audioReady ? mid : Math.max(mid, ambientMid + 0.05);
+      const effectiveMid = audioIsActive ? mid : Math.max(mid, ambientMid + 0.05);
 
       // ── Morph: scroll-driven, spring-smoothed ──
-      // Lines at scroll 0-0.3, morphing 0.3-0.7, full field 0.7+
       const morphTarget = smoothstep(0.3, 0.7, scroll);
       const morph = p.morph.update(morphTarget, 0.12, 0.82);
 
@@ -648,7 +266,7 @@ export default function V12Page() {
         fu.uVolume.value = effectiveVol;
         fu.uMorph.value = morph;
         fu.uFadeIn.value = fadeIn;
-        fu.uAudioActive.value = audioReady ? 1.0 : 0.0;
+        fu.uAudioActive.value = audioIsActive ? 1.0 : 0.0;
         fu.uN.value = sn;
         fu.uM.value = sm;
         fu.uShapeFn.value = mode.shapeFn;
@@ -664,18 +282,17 @@ export default function V12Page() {
         s.etherMaterial.uniforms.uColor.value.set(c2r, c2g, c2b);
       }
 
-      // ── Background color: black during lines, mode bg as field reveals ──
+      // ── Background color ──
       if (s.scene && s.scene.background instanceof THREE.Color) {
         s.scene.background.setRGB(br * morph, bgv * morph, bb * morph);
       }
 
-      // ── Camera: straight-on for lines, tilted down for field ──
+      // ── Camera ──
       if (s.camera) {
         s.camera.position.z = 7.0 - morph * 1.5;
         s.camera.rotation.x = -morph * 0.35;
       }
 
-      // Modulate bloom with audio volume
       if (s.bloomPass) {
         s.bloomPass.strength = 0.15 + vol * 0.15;
       }
@@ -690,7 +307,7 @@ export default function V12Page() {
 
     frameId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameId);
-  }, [audioReady, getFrequencyData]);
+  }, [audioIsActive, getActiveFrequencyData]);
 
   // Sync modeId to ref
   useEffect(() => { stateRef.current.modeId = modeId; }, [modeId]);
@@ -702,60 +319,24 @@ export default function V12Page() {
     return () => window.removeEventListener("scroll", h);
   }, []);
 
-  const handleEnableAudio = useCallback(() => { 
-    startAudio(); 
-    setShowMicPrompt(false);
-  }, [startAudio]);
-
-  const handleDismissPrompt = useCallback(() => {
-    setShowMicPrompt(false);
-  }, []);
-
-  const quizQuestions = [
-    {
-      question: "What does your body need most right now?",
-      options: [
-        { text: "Calm & grounding", icon: "🌿", weight: 'genesis' as ModeId },
-        { text: "Clarity & focus", icon: "💎", weight: 'revelation' as ModeId },
-        { text: "Energy & expansion", icon: "⚡", weight: 'ascension' as ModeId },
-      ]
-    },
-    {
-      question: "How would you describe your current state?",
-      options: [
-        { text: "Overwhelmed — I need to slow down", icon: "🌊", weight: 'genesis' as ModeId },
-        { text: "Foggy — I need to cut through the noise", icon: "🔮", weight: 'revelation' as ModeId },
-        { text: "Stagnant — I need to break free", icon: "🔥", weight: 'ascension' as ModeId },
-      ]
-    },
-    {
-      question: "When you close your eyes, what do you hear?",
-      options: [
-        { text: "A deep hum, like the earth breathing", icon: "🪨", weight: 'genesis' as ModeId },
-        { text: "A clear tone, like a bell in still air", icon: "🔔", weight: 'revelation' as ModeId },
-        { text: "A rising wave, like wind through a canyon", icon: "🌀", weight: 'ascension' as ModeId },
-      ]
-    }
-  ];
-
   const handleQuizAnswer = useCallback((answerIndex: number, weight: ModeId) => {
     const newAnswers = [...quizAnswers, answerIndex];
     setQuizAnswers(newAnswers);
     const nextStep = quizStep + 1;
-    
-    if (nextStep > quizQuestions.length) {
+
+    if (nextStep > QUIZ_QUESTIONS.length) {
       const counts: Record<ModeId, number> = { genesis: 0, revelation: 0, ascension: 0 };
       quizAnswers.forEach((ai, qi) => {
-        if (quizQuestions[qi]) counts[quizQuestions[qi].options[ai].weight]++;
+        if (QUIZ_QUESTIONS[qi]) counts[QUIZ_QUESTIONS[qi].options[ai].weight]++;
       });
       counts[weight]++;
-      
+
       const result = (Object.entries(counts) as [ModeId, number][]).sort((a, b) => b[1] - a[1])[0][0];
       setQuizResult(result);
       setModeId(result);
     }
     setQuizStep(nextStep);
-  }, [quizStep, quizAnswers, quizQuestions]);
+  }, [quizStep, quizAnswers]);
 
   const startQuiz = useCallback(() => {
     setQuizStep(1);
@@ -769,67 +350,43 @@ export default function V12Page() {
     <div className="min-h-screen bg-black text-white font-sans selection:bg-white/20 overflow-x-hidden">
       <FontStyles />
 
-      {/* ── Mic Prompt Overlay ── */}
-      <AnimatePresence>
-        {showMicPrompt && !audioReady && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
-          >
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <img src="/images/mushroom-cluster.jpg" alt="" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] max-w-[600px] opacity-[0.12] object-contain" />
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
-              className="relative z-10 flex flex-col items-center text-center px-8 max-w-md"
-            >
-              <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-4 tracking-wide">
-                Find Your Frequency
-              </h2>
-              <p className="text-white/50 text-sm leading-relaxed mb-10 max-w-xs">
-                This experience reacts to your voice and the sounds around you. Enable your microphone to bring the field to life.
-              </p>
-
-              <button
-                onClick={handleEnableAudio}
-                className="group relative w-28 h-28 rounded-full border-2 border-white/30 bg-white/5 backdrop-blur-xl flex items-center justify-center hover:border-white/60 hover:bg-white/10 transition-all duration-500 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)] mb-6"
-              >
-                <div className="absolute inset-0 rounded-full border border-white/10 animate-ping opacity-20" />
-                <div className="flex flex-col items-center gap-2">
-                  <svg className="w-8 h-8 text-white/80 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-                  </svg>
-                  <span className="text-[9px] uppercase tracking-[0.3em] text-white/50 group-hover:text-white/80 transition-colors">Enable</span>
-                </div>
-              </button>
-
-              <button
-                onClick={handleDismissPrompt}
-                className="text-white/30 hover:text-white/60 text-xs uppercase tracking-[0.2em] transition-colors"
-              >
-                Continue without audio →
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ── Trailer Intro Overlay ── */}
+      <TrailerIntro
+        phase={introPhase}
+        onPlay={handlePlay}
+        onDone={handleIntroDone}
+        trailerAudio={trailerAudio}
+      />
 
       {/* ── WebGL Canvas (behind all content, above ambient imagery) ── */}
       <div ref={canvasContainerRef} className="fixed inset-0 z-[2] pointer-events-none" />
 
       {/* ── Dark mushroom imagery (ambient background layers) ── */}
       <div className="fixed inset-0 z-[0] pointer-events-none overflow-hidden">
-        <img src="/images/plant-dark.jpg" alt="" className="absolute left-0 top-0 h-full w-[30vw] object-cover opacity-[0.06]" 
-          style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)' }} />
-        <img src="/images/mushroom-smoke.jpg" alt="" className="absolute right-0 top-0 h-full w-[30vw] object-cover opacity-[0.06] scale-x-[-1]"
-          style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)' }} />
+        <div
+          className="absolute left-0 top-0 h-full w-[30vw] opacity-[0.06] relative"
+          style={{ maskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
+        >
+          <Image
+            src="/images/plant-dark.jpg"
+            alt=""
+            fill
+            sizes="30vw"
+            className="object-cover"
+          />
+        </div>
+        <div
+          className="absolute right-0 top-0 h-full w-[30vw] opacity-[0.06] scale-x-[-1] relative"
+          style={{ maskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
+        >
+          <Image
+            src="/images/mushroom-smoke.jpg"
+            alt=""
+            fill
+            sizes="30vw"
+            className="object-cover"
+          />
+        </div>
       </div>
 
       {/* ── Dark gradient overlay for product section ── */}
@@ -848,7 +405,7 @@ export default function V12Page() {
         </div>
         <div className="flex gap-8 items-center">
           <button onClick={handleEnableAudio} className="relative" title="Enable microphone">
-            <WaveIcon active={audioReady} />
+            <WaveIcon active={micAudio.isReady} />
           </button>
           <ShoppingBag className="w-5 h-5 hover:text-mycelium-gold transition-colors cursor-pointer" />
         </div>
@@ -857,17 +414,15 @@ export default function V12Page() {
       {/* ═══ SECTION 1: Hero — Lines morph into Field as you scroll ═══ */}
       <section className="relative h-[200vh] w-full">
         <div className="sticky top-0 h-screen w-full flex items-center justify-center pointer-events-none z-[5]">
-          {/* Typography — "God is Frequency" — fades out and drifts up on scroll */}
           <motion.div
             className="relative z-10 text-center select-none"
-            style={{ opacity: textOpacity, y: textY }}
+            style={{ opacity: textOpacity, y: textY, clipPath: textClip }}
           >
             <motion.h1
               className="flex flex-col items-center"
               animate={{ scale: [1, 1.015, 1] }}
               transition={{ delay: 3.5, duration: 4, ease: "easeInOut", repeat: Infinity }}
             >
-              {/* "God" and "is" as separate staggered words */}
               <span className="flex items-center justify-center gap-[0.3em] mb-3">
                 {["God", "is"].map((word, wi) => (
                   <motion.span
@@ -881,7 +436,6 @@ export default function V12Page() {
                   </motion.span>
                 ))}
               </span>
-              {/* "Frequency" — per-character stagger with blur-deblur */}
               <span className="flex items-center justify-center">
                 {"Frequency".split("").map((char, i) => (
                   <motion.span
@@ -898,7 +452,6 @@ export default function V12Page() {
             </motion.h1>
           </motion.div>
 
-          {/* Scroll hint */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -930,8 +483,8 @@ export default function V12Page() {
                 ))}
               </div>
               <div className="hidden md:flex items-center gap-3">
-                <Activity className={`w-4 h-4 ${audioReady ? 'text-white animate-pulse' : 'text-gray-600'}`} />
-                <span className="text-[10px] uppercase tracking-widest text-gray-500">{audioReady ? 'Listening' : 'Tap mic to activate'}</span>
+                <Activity className={`w-4 h-4 ${micAudio.isReady ? 'text-white animate-pulse' : 'text-gray-600'}`} />
+                <span className="text-[10px] uppercase tracking-widest text-gray-500">{micAudio.isReady ? 'Listening' : 'Tap mic to activate'}</span>
               </div>
             </div>
           </div>
@@ -944,10 +497,12 @@ export default function V12Page() {
       {/* ═══ SECTION 2.5: Mushroom Smoke Divider ═══ */}
       <section className="relative z-10 w-full overflow-hidden">
         <div className="relative w-full aspect-[16/6] md:aspect-[16/4]">
-          <img 
-            src="/images/mushroom-smoke.jpg" 
-            alt="" 
-            className="absolute inset-0 w-full h-full object-cover object-center opacity-60"
+          <Image
+            src="/images/mushroom-smoke.jpg"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover object-center opacity-60"
           />
           <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-black to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black to-transparent" />
@@ -970,13 +525,14 @@ export default function V12Page() {
                 transition={{ duration: 1 }}
                 className="text-center"
               >
-                {/* Full-width cinematic mushroom hero */}
                 <div className="relative w-screen -mx-6 mb-16 overflow-hidden" style={{ maxWidth: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
                   <div className="relative w-full aspect-[16/10] md:aspect-[16/7] overflow-hidden">
-                    <img 
-                      src="/images/mushroom-cluster.jpg" 
-                      alt="" 
-                      className="absolute inset-0 w-full h-full object-cover object-center"
+                    <Image
+                      src="/images/mushroom-cluster.jpg"
+                      alt=""
+                      fill
+                      sizes="100vw"
+                      className="object-cover object-center"
                     />
                     <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black via-black/60 to-transparent" />
                     <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/80 to-transparent" />
@@ -1005,7 +561,7 @@ export default function V12Page() {
               </motion.div>
             )}
 
-            {quizStep >= 1 && quizStep <= quizQuestions.length && (
+            {quizStep >= 1 && quizStep <= QUIZ_QUESTIONS.length && (
               <motion.div
                 key={`quiz-q${quizStep}`}
                 initial={{ opacity: 0, x: 40 }}
@@ -1015,7 +571,7 @@ export default function V12Page() {
                 className="text-center"
               >
                 <div className="flex items-center justify-center gap-3 mb-12">
-                  {quizQuestions.map((_, i) => (
+                  {QUIZ_QUESTIONS.map((_, i) => (
                     <div key={i} className={clsx(
                       "h-[2px] w-12 rounded-full transition-all duration-500",
                       i < quizStep ? "bg-white/80" : i === quizStep - 1 ? "bg-white/60" : "bg-white/15"
@@ -1024,15 +580,15 @@ export default function V12Page() {
                 </div>
 
                 <span className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-cinzel block mb-6">
-                  Question {quizStep} of {quizQuestions.length}
+                  Question {quizStep} of {QUIZ_QUESTIONS.length}
                 </span>
 
                 <h3 className="font-playfair italic text-2xl md:text-3xl text-white mb-12 leading-relaxed">
-                  {quizQuestions[quizStep - 1].question}
+                  {QUIZ_QUESTIONS[quizStep - 1].question}
                 </h3>
 
                 <div className="flex flex-col gap-4 max-w-md mx-auto">
-                  {quizQuestions[quizStep - 1].options.map((opt, i) => (
+                  {QUIZ_QUESTIONS[quizStep - 1].options.map((opt, i) => (
                     <button
                       key={i}
                       onClick={() => handleQuizAnswer(i, opt.weight)}
@@ -1048,7 +604,7 @@ export default function V12Page() {
               </motion.div>
             )}
 
-            {quizStep > quizQuestions.length && quizResult && (
+            {quizStep > QUIZ_QUESTIONS.length && quizResult && (
               <motion.div
                 key="quiz-result"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -1103,47 +659,27 @@ export default function V12Page() {
       </section>
 
       {/* ═══ SECTION 4: The Sonic Infusion ═══ */}
-      <motion.section initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-20%" }} transition={{ duration: 1 }}
-        className="relative z-10 w-full min-h-[80vh] flex items-center justify-center py-24 bg-black/30 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-8 tracking-wide">The Sonic Infusion</h2>
-          <p className="font-playfair text-xl md:text-3xl text-white/80 leading-relaxed italic mb-12">
-            &quot;The Mushrooms don&apos;t Work for Us. We Work for Them.&quot;
-          </p>
-          <div className="grid md:grid-cols-3 gap-8 text-left">
-            <div className="space-y-3">
-              <Waves className="w-8 h-8 text-mycelium-gold" />
-              <h3 className="font-serif text-lg text-white">Grown as Medicine</h3>
-              <p className="text-sm text-white/60 leading-relaxed">Fungi are sentient beings. We treat them with reverence, growing them in clean, high-vibration spaces.</p>
-            </div>
-            <div className="space-y-3">
-              <Disc className="w-8 h-8 text-mycelium-gold" />
-              <h3 className="font-serif text-lg text-white">432Hz Infusion</h3>
-              <p className="text-sm text-white/60 leading-relaxed">Every stage of cultivation is immersed in Solfeggio tones, chants, and nature sounds to harmonize the biological structure.</p>
-            </div>
-            <div className="space-y-3">
-              <Sprout className="w-8 h-8 text-mycelium-gold" />
-              <h3 className="font-serif text-lg text-white">Nature & Nurture</h3>
-              <p className="text-sm text-white/60 leading-relaxed">&quot;Same genetics, different frequency = different outcome.&quot; We refine unique strains through our in-house cultivation.</p>
-            </div>
-          </div>
-        </div>
-      </motion.section>
+      <SonicInfusionSection />
 
       {/* ═══ SECTION 5: Product ═══ */}
       <section className="relative z-10 w-full min-h-screen">
         <div className="md:grid md:grid-cols-2 min-h-screen">
           <div className="sticky top-0 h-screen hidden md:flex items-center justify-center">
             <ProductBottle />
-            {/* Small mushroom image accent near bottle */}
-            <img 
-              src="/images/mushroom-cluster.jpg" 
-              alt="" 
-              className="absolute bottom-[8%] left-[10%] w-32 h-32 object-cover rounded-2xl opacity-[0.15] blur-[1px]"
+            <div
+              className="absolute bottom-[8%] left-[10%] w-32 h-32 opacity-[0.15] blur-[1px] relative rounded-2xl overflow-hidden"
               style={{ maskImage: 'radial-gradient(circle, black 40%, transparent 70%)', WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 70%)' }}
-            />
+            >
+              <Image
+                src="/images/mushroom-cluster.jpg"
+                alt=""
+                fill
+                sizes="128px"
+                className="object-cover"
+              />
+            </div>
           </div>
-          <div className="md:hidden py-12"><ProductBottle /></div>
+          <div className="md:hidden py-20 px-6"><ProductBottle /></div>
           <div className="px-6 py-24 md:py-32 md:px-16 flex flex-col justify-center max-w-2xl mx-auto backdrop-blur-sm">
             <div className="flex items-center gap-2 mb-6 text-sm font-medium">
               <div className="flex text-mycelium-gold">{[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}</div>
@@ -1154,7 +690,7 @@ export default function V12Page() {
               <span className="text-mycelium-gold">.</span>
             </h2>
             <p className="text-lg text-white/70 leading-relaxed mb-6 font-light">
-              {quizResult === 'revelation' 
+              {quizResult === 'revelation'
                 ? 'A precision-formulated nootropic blend to sharpen focus and dissolve mental fog.'
                 : quizResult === 'ascension'
                 ? 'An expansion-catalyst blend to unlock energy, creativity, and higher awareness.'
@@ -1166,7 +702,7 @@ export default function V12Page() {
             <div className="grid grid-cols-2 gap-4 mb-10">
               {["Anxiety Relief","Mental Clarity","Sleep Support","100% Organic"].map((item, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-white/80">
-                  <div className="w-5 h-5 rounded-full bg-[#E6F5EC] flex items-center justify-center text-[#009E60]"><Check className="w-3 h-3" /></div>
+                  <div className="w-5 h-5 rounded-full bg-mycelium-gold/10 flex items-center justify-center text-mycelium-gold"><Check className="w-3 h-3" /></div>
                   {item}
                 </div>
               ))}
