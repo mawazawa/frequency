@@ -443,7 +443,7 @@ export default function V12Page() {
                     initial={{ opacity: 0, filter: 'blur(20px)', y: 40 }}
                     animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
                     transition={{ delay: 2.0 + i * 0.07, duration: 1.2, ease: [0.25, 0.1, 0.25, 1] }}
-                    className="font-playfair italic text-7xl md:text-[10rem] leading-none metal-text drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]"
+                    className="font-playfair italic text-[10vw] sm:text-6xl md:text-[10rem] leading-none metal-text drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]"
                   >
                     {char}
                   </motion.span>

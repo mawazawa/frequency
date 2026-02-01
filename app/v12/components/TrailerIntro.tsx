@@ -62,6 +62,7 @@ export default function TrailerIntro({ phase, onPlay, onDone, trailerAudio }: Tr
             transition={{ duration: 0.6 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md"
           >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.035),rgba(0,0,0,0.9)_55%,rgba(0,0,0,0.98)_100%)]" />
             {/* Background mushroom imagery */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] max-w-[600px] aspect-[4/3] opacity-[0.12] relative">
@@ -80,21 +81,24 @@ export default function TrailerIntro({ phase, onPlay, onDone, trailerAudio }: Tr
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
-              className="relative z-10 flex flex-col items-center text-center px-8 max-w-md"
+              className="relative z-10 flex flex-col items-center text-center px-8 max-w-md -mt-6"
             >
-              <h2 className="font-cinzel text-2xl md:text-3xl text-white mb-4 tracking-wide">
+              <div className="absolute -inset-10 -z-10 rounded-[40px] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),rgba(0,0,0,0)_60%)]" />
+              <h2 className="font-cinzel text-3xl md:text-4xl text-white mb-4 tracking-[0.2em] drop-shadow-[0_12px_40px_rgba(0,0,0,0.9)]">
                 Find Your Frequency
               </h2>
-              <p className="text-white/50 text-sm leading-relaxed mb-10 max-w-xs">
+              <p className="text-white/70 text-sm leading-relaxed mb-10 max-w-xs">
                 This experience reacts to sound. Press play to begin the journey, or skip to explore on your own.
               </p>
 
               {/* Play button */}
               <button
                 onClick={onPlay}
-                className="group relative w-28 h-28 rounded-full border-2 border-white/30 bg-white/5 backdrop-blur-xl flex items-center justify-center hover:border-white/60 hover:bg-white/10 transition-all duration-500 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)] mb-6"
+                className="group relative w-28 h-28 rounded-full border-2 border-white/40 bg-white/5 backdrop-blur-xl flex items-center justify-center hover:border-white/70 hover:bg-white/10 transition-all duration-500 hover:shadow-[0_0_60px_rgba(255,255,255,0.2)] mb-6"
               >
+                <div className="absolute -inset-6 rounded-full bg-mycelium-gold/10 blur-2xl opacity-60" />
                 <div className="absolute inset-0 rounded-full border border-white/10 animate-ping opacity-20" />
+                <div className="absolute inset-[6px] rounded-full border border-white/10" />
                 <div className="flex flex-col items-center gap-2">
                   {/* Play triangle */}
                   <svg className="w-8 h-8 text-white/80 group-hover:text-white transition-colors" viewBox="0 0 24 24" fill="currentColor">
@@ -106,7 +110,7 @@ export default function TrailerIntro({ phase, onPlay, onDone, trailerAudio }: Tr
 
               <button
                 onClick={onDone}
-                className="text-white/30 hover:text-white/60 text-xs uppercase tracking-[0.2em] transition-colors"
+                className="text-white/50 hover:text-white/80 text-xs uppercase tracking-[0.25em] transition-colors"
               >
                 Skip intro →
               </button>
