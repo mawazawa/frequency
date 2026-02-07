@@ -114,6 +114,7 @@ export default function V12Page() {
     const container = canvasContainerRef.current;
     if (!container) return;
 
+    const isMobile = window.innerWidth < 768;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
 
@@ -122,11 +123,11 @@ export default function V12Page() {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.0 : 1.5));
     container.appendChild(renderer.domElement);
 
     // ── UNIFIED PARTICLE SYSTEM ──
-    const fieldGeo = new THREE.PlaneGeometry(8, 8, 220, 220);
+    const fieldGeo = new THREE.PlaneGeometry(8, 8, isMobile ? 120 : 220, isMobile ? 120 : 220);
     const fieldMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime:        { value: 0 },
@@ -468,7 +469,7 @@ export default function V12Page() {
       {/* ═══ SECTION 2: Field + Controls (Chladni Plate) ═══ */}
       <section className="relative z-[10] min-h-screen w-full flex flex-col justify-end pb-12 px-6">
         <motion.div style={{ opacity: controlPanelOpacity }} className="max-w-4xl mx-auto w-full">
-          <div className="backdrop-blur-2xl bg-black/40 border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+          <div className="backdrop-blur-2xl bg-black/40 border border-white/10 rounded-[32px] p-8 shadow-celestial relative overflow-hidden">
             <div className="absolute inset-0 opacity-[0.02] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
             <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
               <div className="flex flex-wrap justify-center gap-4">
@@ -496,7 +497,13 @@ export default function V12Page() {
 
       {/* ═══ SECTION 2.5: Mushroom Smoke Divider ═══ */}
       <section className="relative z-10 w-full overflow-hidden">
-        <div className="relative w-full aspect-[16/6] md:aspect-[16/4]">
+        <motion.div
+          className="relative w-full aspect-[16/6] md:aspect-[16/4]"
+          initial={{ scale: 1.0 }}
+          whileInView={{ scale: 1.15 }}
+          transition={{ duration: 2, ease: "easeOut" }}
+          viewport={{ once: true }}
+        >
           <Image
             src="/images/mushroom-smoke.jpg"
             alt=""
@@ -508,7 +515,7 @@ export default function V12Page() {
           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black to-transparent" />
           <div className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-black/80 to-transparent" />
           <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-black/80 to-transparent" />
-        </div>
+        </motion.div>
       </section>
 
       {/* ═══ SECTION 3: Find Your Frequency Quiz ═══ */}
