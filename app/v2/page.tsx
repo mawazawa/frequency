@@ -1,329 +1,323 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef, useState } from "react";
-import { ArrowRight, Volume2, Droplets, Wind, Zap, Hexagon, Circle, Triangle } from "lucide-react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
-import clsx from "clsx";
-
-// --- Components ---
-
-const CymaticCircle = ({ index, progress }: { index: number, progress: any }) => {
-    const pathLength = useTransform(progress, [0, 1], [0, 1]);
-    const opacity = useTransform(progress, [0, 0.5, 1], [0.1, 0.5, 0]);
-    
-    return (
-        <motion.circle 
-            cx="50" cy="50" 
-            r={10 + index * 5} 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="0.2"
-            style={{ 
-                pathLength,
-                opacity
-            }} 
-        />
-    )
-}
-
-const CymaticPattern = ({ progress }: { progress: any }) => {
-    // Simulating Chladni figures/Cymatics with SVG overlays that rotate/scale based on scroll
-    const rotate = useTransform(progress, [0, 1], [0, 180]);
-    const scale = useTransform(progress, [0, 0.5, 1], [0.5, 1.2, 0.8]);
-    const opacity = useTransform(progress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
-    
-    // Rotate transform for the rect inside motion.g
-    const rectRotate = useTransform(progress, [0, 1], [0, -90]);
-    
-    // Rotate transform for the second layer
-    const secondLayerRotate = useTransform(progress, [0, 1], [45, -45]);
-    
-    return (
-        <motion.div 
-            style={{ opacity, scale }}
-            className="fixed inset-0 pointer-events-none flex items-center justify-center z-10 mix-blend-screen"
-        >
-             <svg width="800" height="800" viewBox="0 0 100 100" className="opacity-50 text-cyan-400">
-                {/* Complex geometric patterns representing sound waves */}
-                {[...Array(6)].map((_, i) => (
-                    <CymaticCircle key={i} index={i} progress={progress} />
-                ))}
-                
-                <motion.g style={{ rotate }}>
-                     {[...Array(12)].map((_, i) => (
-                         <line 
-                            key={`l-${i}`}
-                            x1="50" y1="50" 
-                            x2={50 + 40 * Math.cos(i * 30 * Math.PI / 180)} 
-                            y2={50 + 40 * Math.sin(i * 30 * Math.PI / 180)} 
-                            stroke="currentColor" 
-                            strokeWidth="0.1" 
-                         />
-                     ))}
-                     <motion.rect 
-                        x="30" y="30" width="40" height="40" 
-                        fill="none" stroke="currentColor" strokeWidth="0.2"
-                        style={{ rotate: rectRotate }}
-                     />
-                </motion.g>
-             </svg>
-             
-             {/* Second Layer - Gold */}
-             <motion.div 
-                style={{ rotate: secondLayerRotate }}
-                className="absolute inset-0 flex items-center justify-center text-mycelium-gold opacity-30"
-             >
-                  <svg width="600" height="600" viewBox="0 0 100 100">
-                      <polygon points="50,10 90,90 10,90" fill="none" stroke="currentColor" strokeWidth="0.2" />
-                      <polygon points="50,90 90,10 10,10" fill="none" stroke="currentColor" strokeWidth="0.2" />
-                  </svg>
-             </motion.div>
-        </motion.div>
-    );
-}
-
-const AudioVisualizer = () => {
-    return (
-        <div className="flex items-center gap-1 h-8">
-             {[...Array(8)].map((_, i) => (
-                 <motion.div 
-                    key={i}
-                    animate={{ height: ["20%", "100%", "20%"] }}
-                    transition={{ 
-                        duration: 0.8, 
-                        repeat: Infinity, 
-                        ease: "easeInOut",
-                        delay: i * 0.1 
-                    }}
-                    className="w-1 bg-cyan-400/50 rounded-full"
-                 />
-             ))}
-        </div>
-    )
-}
-
-const FrequencyNav = () => {
-    const frequencies = [
-        { label: "Ground", hz: "396 Hz", icon: Hexagon, desc: "Release Fear" },
-        { label: "Create", hz: "417 Hz", icon: Droplets, desc: "Facilitate Change" },
-        { label: "Transform", hz: "528 Hz", icon: Triangle, desc: "DNA Repair" },
-        { label: "Connect", hz: "639 Hz", icon: Circle, desc: "Relationships" },
-        { label: "Express", hz: "741 Hz", icon: Wind, desc: "Intuition" },
-        { label: "Awaken", hz: "852 Hz", icon: Zap, desc: "Spiritual Order" },
-    ];
-
-    const [active, setActive] = useState(2); // Default to Transform
-
-    return (
-        <div className="py-24 px-6 max-w-7xl mx-auto">
-            <h3 className="text-center font-serif text-3xl text-white/40 mb-16">Find Your Frequency</h3>
-            
-            <div className="flex flex-col md:flex-row items-center justify-center gap-12">
-                {/* Circular Nav */}
-                <div className="relative w-96 h-96 flex-shrink-0">
-                    <div className="absolute inset-0 rounded-full border border-white/10 animate-[spin_60s_linear_infinite]" />
-                    <div className="absolute inset-8 rounded-full border border-white/5 animate-[spin_40s_linear_infinite_reverse]" />
-                    
-                    {frequencies.map((f, i) => {
-                        const angle = (i / frequencies.length) * 2 * Math.PI - Math.PI / 2;
-                        const radius = 160; // Distance from center
-                        const x = Math.cos(angle) * radius + 192 - 24; // Center x + offset
-                        const y = Math.sin(angle) * radius + 192 - 24; // Center y + offset
-                        
-                        return (
-                            <button
-                                key={i}
-                                onClick={() => setActive(i)}
-                                className={clsx(
-                                    "absolute w-12 h-12 rounded-full flex items-center justify-center border transition-all duration-500 backdrop-blur-sm z-20",
-                                    active === i 
-                                        ? "bg-cyan-900/50 border-cyan-400 text-cyan-400 scale-125 shadow-[0_0_30px_rgba(34,211,238,0.3)]" 
-                                        : "bg-black/40 border-white/10 text-white/40 hover:border-white/30 hover:text-white"
-                                )}
-                                style={{ left: x, top: y }}
-                            >
-                                <f.icon className="w-5 h-5" />
-                            </button>
-                        );
-                    })}
-                    
-                    {/* Center Active Display */}
-                    <div className="absolute inset-0 flex items-center justify-center z-10">
-                        <motion.div 
-                            key={active}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="text-center"
-                        >
-                            <div className="text-6xl font-serif text-white mb-2">{frequencies[active].hz}</div>
-                            <div className="text-cyan-400 uppercase tracking-widest text-sm font-medium">{frequencies[active].label}</div>
-                        </motion.div>
-                    </div>
-                </div>
-
-                {/* Info Panel */}
-                <div className="max-w-md text-left">
-                     <motion.div
-                        key={active}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.4 }}
-                     >
-                        <h4 className="text-4xl font-serif text-white mb-4">{frequencies[active].desc}</h4>
-                        <p className="text-white/60 leading-relaxed mb-8">
-                            This frequency resonates with the cellular structure of our <span className="text-cyan-400">{frequencies[active].label}</span> blend. 
-                            Cultivated for 8 weeks in our acoustic chamber to imprint harmonic stability into the mycelial network.
-                        </p>
-                        
-                        <div className="flex gap-4">
-                            <button className="bg-white text-black px-8 py-3 rounded-full font-medium hover:bg-cyan-400 hover:text-black transition-colors">
-                                Shop {frequencies[active].label} Blend
-                            </button>
-                            <button className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:border-cyan-400 hover:text-cyan-400 transition-colors text-white/60">
-                                <Volume2 className="w-5 h-5" />
-                            </button>
-                        </div>
-                     </motion.div>
-                </div>
-            </div>
-        </div>
-    )
-}
+import { ArrowRight } from "lucide-react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import Lenis from "lenis";
 
 export default function V2Page() {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const { scrollYProgress } = useScroll({
-        target: containerRef,
-        offset: ["start start", "end end"]
+  const containerRef = useRef<HTMLDivElement>(null);
+  const act1Ref = useRef<HTMLDivElement>(null);
+  const act2Ref = useRef<HTMLDivElement>(null);
+  const act1TextRef = useRef<HTMLDivElement>(null);
+  const act2TextRef = useRef<HTMLDivElement>(null);
+  const act3Ref = useRef<HTMLDivElement>(null);
+  const act3TextRef = useRef<HTMLDivElement>(null);
+  const act3LogoRef = useRef<HTMLDivElement>(null);
+  const act3CtaRef = useRef<HTMLDivElement>(null);
+  const burstRef = useRef<HTMLDivElement>(null);
+  const cymaticsRef = useRef<SVGSVGElement>(null);
+  const barsRef = useRef<HTMLDivElement>(null);
+  const particlesRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    gsap.registerPlugin(ScrollTrigger);
+
+    const lenis = new Lenis({
+      smooth: true,
+      lerp: 0.08,
+      wheelMultiplier: 0.9,
+      smoothTouch: false,
     });
 
-    // Intro Opacity: Fades out as we scroll deep
-    const introOpacity = useTransform(scrollYProgress, [0, 0.15], [1, 0]);
-    const introScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.8]);
+    const raf = (time: number) => {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    };
+    requestAnimationFrame(raf);
 
-    // Cymatics Phase: 0.15 -> 0.45
-    const cymaticsOpacity = useTransform(scrollYProgress, [0.1, 0.2, 0.4, 0.5], [0, 1, 1, 0]);
+    lenis.on("scroll", ScrollTrigger.update);
 
-    // Soil/Growth Phase: 0.45 -> 0.75
-    const growthOpacity = useTransform(scrollYProgress, [0.45, 0.5, 0.7, 0.8], [0, 1, 1, 0]);
-    
-    // Reveal Phase: 0.8 -> 1.0
-    const revealOpacity = useTransform(scrollYProgress, [0.75, 0.85], [0, 1]);
-    const revealScale = useTransform(scrollYProgress, [0.75, 1], [0.9, 1]);
+    const ctx = gsap.context(() => {
+      if (!act1Ref.current || !act2Ref.current || !act3Ref.current) return;
 
-    return (
-        <div ref={containerRef} className="bg-[#0A0806] min-h-[400vh] relative font-sans text-white selection:bg-cyan-500/30">
-            
-            {/* Fixed Canvas / Visual Layer */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                {/* Background Texture */}
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
-                
-                {/* Cymatics Visualization */}
-                <CymaticPattern progress={scrollYProgress} />
-            </div>
+      gsap.set([act1TextRef.current, act2TextRef.current, act3TextRef.current], { opacity: 0, y: 40 });
+      gsap.set([act3LogoRef.current, act3CtaRef.current], { opacity: 0, y: 30 });
+      gsap.set(burstRef.current, { opacity: 0, scale: 0.5, filter: "blur(16px)" });
+      gsap.set(cymaticsRef.current, { opacity: 0, scale: 0.6, rotate: -15 });
+      gsap.set(barsRef.current?.children || [], { scaleY: 0.2, opacity: 0.2, transformOrigin: "bottom" });
 
-            {/* --- Section 1: The Void (Static Start) --- */}
-            <section className="h-screen sticky top-0 flex flex-col items-center justify-center z-20 pointer-events-none">
-                <motion.div style={{ opacity: introOpacity, scale: introScale }} className="text-center px-4">
-                     <div className="mb-8 opacity-50 tracking-[0.5em] text-xs uppercase text-cyan-200">
-                         Est. 2026 • Topanga Canyon
-                     </div>
-                     <h1 className="text-6xl md:text-8xl font-serif font-light text-white mb-6">
-                         Silence is<br />
-                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/20">Frequency</span>.
-                     </h1>
-                     <div className="flex justify-center mt-12 animate-pulse">
-                         <div className="w-px h-24 bg-gradient-to-b from-cyan-400 to-transparent" />
-                     </div>
-                </motion.div>
-            </section>
+      const act3Rings = gsap.utils.toArray<HTMLElement>(".act3-ring");
+      const act3Shards = gsap.utils.toArray<HTMLElement>(".act3-shard");
+      gsap.set(act3Rings, { opacity: 0, scale: 0.6, transformOrigin: "center" });
+      gsap.set(act3Shards, { opacity: 0, y: 40 });
 
-            {/* --- Section 2: Vibration (Scroll Triggered) --- */}
-            <div className="h-screen" /> {/* Spacer for scroll */}
-            
-            <section className="h-screen sticky top-0 flex items-center justify-center z-20 pointer-events-none">
-                <motion.div style={{ opacity: cymaticsOpacity }} className="text-center max-w-2xl px-6 backdrop-blur-sm bg-black/10 p-8 rounded-2xl border border-white/5">
-                    <AudioVisualizer />
-                    <h2 className="text-4xl md:text-5xl font-serif mt-6 mb-4">In the beginning, there was sound.</h2>
-                    <p className="text-lg text-white/70 font-light leading-relaxed">
-                        We don't just grow mushrooms. We cultivate vibration. 
-                        Every strain is exposed to 432Hz acoustic waves during colonization, 
-                        imprinting harmonic stability into the cellular structure.
-                    </p>
-                </motion.div>
-            </section>
+      gsap.timeline({
+        scrollTrigger: {
+          trigger: act1Ref.current,
+          start: "top top",
+          end: "+=200%",
+          scrub: true,
+          pin: true,
+        },
+      })
+        .to(act1TextRef.current, { opacity: 1, y: 0, duration: 0.8 }, 0.2)
+        .to(act1TextRef.current, { opacity: 0, y: -60, duration: 0.8 }, 0.75);
 
-            <div className="h-screen" /> {/* Spacer */}
+      gsap.timeline({
+        scrollTrigger: {
+          trigger: act2Ref.current,
+          start: "top top",
+          end: "+=250%",
+          scrub: true,
+          pin: true,
+        },
+      })
+        .to(act2TextRef.current, { opacity: 1, y: 0, duration: 0.6 }, 0.1)
+        .to(cymaticsRef.current, { opacity: 1, scale: 1, rotate: 0, duration: 0.8 }, 0.2)
+        .to(cymaticsRef.current, { rotate: 180, scale: 1.15, duration: 1.2 }, 0.5)
+        .to(barsRef.current?.children || [], { scaleY: 1, opacity: 0.9, duration: 0.6, stagger: 0.05 }, 0.4)
+        .to(act2TextRef.current, { opacity: 0, y: -40, duration: 0.6 }, 0.85);
 
-            {/* --- Section 3: Alignment / Growth --- */}
-            <section className="h-screen sticky top-0 flex items-center justify-center z-20 pointer-events-none">
-                <motion.div style={{ opacity: growthOpacity }} className="flex flex-col items-center">
-                    {/* Simulated Growth via CSS */}
-                    <div className="relative w-64 h-80 mb-8">
-                        {/* Stalk */}
-                        <motion.div 
-                            style={{ height: useTransform(scrollYProgress, [0.5, 0.7], ["0%", "100%"]) }}
-                            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 bg-gradient-to-t from-[#5c4033] to-[#E8DCC4] rounded-t-lg origin-bottom"
-                        />
-                        {/* Cap */}
-                        <motion.div 
-                            style={{ 
-                                scale: useTransform(scrollYProgress, [0.6, 0.75], [0, 1]),
-                                opacity: useTransform(scrollYProgress, [0.6, 0.65], [0, 1])
-                            }}
-                            className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-32 bg-gradient-to-b from-amber-700 to-amber-900 rounded-[50%_50%_20%_20%] shadow-[0_0_50px_rgba(184,134,11,0.3)] border-t border-white/10"
-                        >
-                            {/* Spores/Gills */}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] h-1 bg-black/20 blur-sm" />
-                        </motion.div>
-                    </div>
-                    
-                    <h2 className="text-3xl font-serif text-[#E8DCC4]">Alignment.</h2>
-                    <p className="text-sm text-[#A39E94] mt-2 tracking-widest uppercase">Sacred Geometry in Matter</p>
-                </motion.div>
-            </section>
+      gsap.timeline({
+        scrollTrigger: {
+          trigger: act3Ref.current,
+          start: "top top",
+          end: "+=250%",
+          scrub: true,
+          pin: true,
+        },
+      })
+        .to(act3TextRef.current, { opacity: 1, y: 0, duration: 0.6 }, 0.1)
+        .to(burstRef.current, { opacity: 1, scale: 1.15, filter: "blur(0px)", duration: 0.8 }, 0.2)
+        .to(act3Rings, { opacity: 1, scale: 1, duration: 0.6, stagger: 0.1 }, 0.25)
+        .to(act3Rings, { rotate: 180, scale: 1.25, duration: 1.0, stagger: 0.08 }, 0.45)
+        .to(act3Shards, { opacity: 1, y: 0, duration: 0.6, stagger: 0.08 }, 0.45)
+        .to(act3TextRef.current, { opacity: 0, y: -30, duration: 0.6 }, 0.55)
+        .to(act3LogoRef.current, { opacity: 1, y: 0, duration: 0.6 }, 0.6)
+        .to(act3CtaRef.current, { opacity: 1, y: 0, duration: 0.6 }, 0.75);
+    }, containerRef);
 
-            <div className="h-screen" /> {/* Spacer */}
+    return () => {
+      ctx.revert();
+      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+      lenis.destroy();
+    };
+  }, []);
 
-            {/* --- Section 4: The Truth (Final Reveal) --- */}
-            <section className="min-h-screen bg-[#0A0806] relative z-30 border-t border-white/10">
-                <motion.div 
-                    style={{ opacity: revealOpacity, scale: revealScale }}
-                    className="pt-32 pb-20 px-6 text-center"
-                >
-                    <div className="inline-block mb-12">
-                        <h2 className="text-[10vw] md:text-[8vw] leading-none font-serif text-mycelium-gold drop-shadow-[0_0_15px_rgba(201,162,39,0.3)]">
-                            God is<br />Frequency.
-                        </h2>
-                        <div className="h-1 w-full bg-gradient-to-r from-transparent via-mycelium-gold to-transparent mt-4 opacity-50" />
-                    </div>
+  useEffect(() => {
+    const canvas = particlesRef.current;
+    if (!canvas) return;
 
-                    <p className="text-xl md:text-2xl text-white/80 max-w-3xl mx-auto mb-16 font-light">
-                        Witness the intersection of ancient botany and modern acoustics.
-                        <br/>This isn't marketing. It's physics made visible.
-                    </p>
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-                    <Link href="/v2/shop" className="inline-flex items-center gap-3 bg-white text-black px-10 py-5 rounded-full font-medium text-lg hover:bg-cyan-400 transition-colors duration-300">
-                        Enter the Chamber <ArrowRight className="w-5 h-5" />
-                    </Link>
-                </motion.div>
+    let animationId = 0;
+    let width = 0;
+    let height = 0;
 
-                {/* Find Your Frequency Module */}
-                <div className="bg-[#111] py-12 border-t border-white/5">
-                    <FrequencyNav />
-                </div>
+    const resize = () => {
+      width = canvas.clientWidth;
+      height = canvas.clientHeight;
+      canvas.width = Math.floor(width * window.devicePixelRatio);
+      canvas.height = Math.floor(height * window.devicePixelRatio);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    };
 
-                {/* Footer */}
-                <footer className="py-24 px-8 text-center text-white/20 text-xs font-mono uppercase tracking-widest border-t border-white/5">
-                    FrequencyCaps © 2026 • Cultivated at 432Hz
-                </footer>
-            </section>
+    resize();
+    window.addEventListener("resize", resize);
 
-            <Link href="/" className="fixed bottom-8 left-8 z-50 text-white/40 hover:text-white transition-colors text-xs uppercase tracking-widest">
-                ← Back to Menu
-            </Link>
+    const particles = Array.from({ length: 80 }).map(() => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      r: Math.random() * 1.6 + 0.6,
+      vx: (Math.random() - 0.5) * 0.15,
+      vy: (Math.random() - 0.5) * 0.12,
+      alpha: Math.random() * 0.5 + 0.15,
+    }));
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < -10) p.x = width + 10;
+        if (p.x > width + 10) p.x = -10;
+        if (p.y < -10) p.y = height + 10;
+        if (p.y > height + 10) p.y = -10;
+
+        ctx.globalAlpha = p.alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      animationId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="bg-black text-white min-h-[700vh] overflow-x-hidden">
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.06),_transparent_55%)]" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
+      </div>
+
+      {/* ACT I: STILLNESS */}
+      <section ref={act1Ref} className="relative h-[200vh]">
+        <div className="sticky top-0 h-screen flex items-center justify-center">
+          <canvas ref={particlesRef} className="absolute inset-0 h-full w-full" />
+          <div className="absolute inset-0 bg-black/70" />
+          <div ref={act1TextRef} className="relative z-10 text-center px-6 max-w-3xl">
+            <p className="text-[11px] uppercase tracking-[0.6em] text-white/40 mb-6">Act I · Stillness</p>
+            <h1 className="text-4xl sm:text-6xl md:text-7xl font-light tracking-tight">
+              Everything is <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white/60 to-white/20">frequency</span>
+            </h1>
+            <p className="mt-6 text-sm sm:text-base text-white/50 max-w-xl mx-auto">
+              A deep void. A slow breath. Particles drift with minimal motion — the universe before vibration.
+            </p>
+          </div>
         </div>
-    );
+      </section>
+
+      {/* ACT II: VIBRATION */}
+      <section ref={act2Ref} className="relative h-[250vh]">
+        <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(129,140,248,0.12),_rgba(0,0,0,0.95)_60%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(120deg,_rgba(56,189,248,0.08),_transparent_50%,_rgba(250,204,21,0.08))]" />
+
+          <svg
+            ref={cymaticsRef}
+            className="absolute w-[70vmin] h-[70vmin] text-cyan-300/60"
+            viewBox="0 0 100 100"
+          >
+            {[...Array(6)].map((_, i) => (
+              <circle key={i} cx="50" cy="50" r={10 + i * 6} fill="none" stroke="currentColor" strokeWidth="0.2" />
+            ))}
+            {[...Array(12)].map((_, i) => (
+              <line
+                key={`l-${i}`}
+                x1="50"
+                y1="50"
+                x2={50 + 40 * Math.cos((i * 30 * Math.PI) / 180)}
+                y2={50 + 40 * Math.sin((i * 30 * Math.PI) / 180)}
+                stroke="currentColor"
+                strokeWidth="0.18"
+              />
+            ))}
+            <polygon
+              points="50,10 90,90 10,90"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.22"
+            />
+            <polygon
+              points="50,90 90,10 10,10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.22"
+            />
+          </svg>
+
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-end gap-2" ref={barsRef}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div
+                key={i}
+                className="w-[6px] sm:w-[8px] h-20 sm:h-28 rounded-full bg-gradient-to-t from-cyan-400/60 via-cyan-300/80 to-white/80"
+                style={{ filter: "drop-shadow(0 0 12px rgba(34,211,238,0.3))" }}
+              />
+            ))}
+          </div>
+
+          <div ref={act2TextRef} className="relative z-10 text-center px-6 max-w-3xl">
+            <p className="text-[11px] uppercase tracking-[0.6em] text-white/50 mb-6">Act II · Vibration</p>
+            <h2 className="text-4xl sm:text-6xl md:text-7xl font-light tracking-tight">
+              The void <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-white to-amber-200">awakens</span>
+            </h2>
+            <p className="mt-6 text-sm sm:text-base text-white/60 max-w-xl mx-auto">
+              Cymatics ripple into sacred geometry. Energy rises. The field becomes audible.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ACT III: THE CRESCENDO */}
+      <section ref={act3Ref} className="relative h-[250vh]">
+        <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(14,165,233,0.2),_rgba(0,0,0,0.95)_60%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(120deg,_rgba(250,204,21,0.15),_transparent_45%,_rgba(56,189,248,0.25))]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(255,255,255,0.08),_transparent_55%)]" />
+
+          <div ref={burstRef} className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute w-[60vmin] h-[60vmin] rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.35),_rgba(56,189,248,0.2)_45%,_transparent_70%)]" />
+            <div className="absolute w-[75vmin] h-[75vmin] rounded-full border border-cyan-200/30 shadow-[0_0_80px_rgba(34,211,238,0.35)]" />
+            <div className="absolute w-[90vmin] h-[90vmin] rounded-full border border-amber-200/20 mix-blend-screen" />
+          </div>
+
+          <div className="absolute inset-0">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={`ring-${i}`}
+                className="act3-ring absolute left-1/2 top-1/2 h-[28vmin] w-[28vmin] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/25"
+                style={{ width: `${28 + i * 10}vmin`, height: `${28 + i * 10}vmin`, filter: "drop-shadow(0 0 18px rgba(56,189,248,0.25))" }}
+              />
+            ))}
+          </div>
+
+          <div className="absolute inset-0 flex items-center justify-center">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <span
+                key={`shard-${i}`}
+                className="act3-shard absolute h-10 w-[2px] bg-gradient-to-b from-transparent via-cyan-200/70 to-amber-200/60"
+                style={{ transform: `rotate(${i * 36}deg) translateY(-18vmin)`, filter: "drop-shadow(0 0 12px rgba(255,255,255,0.35))" }}
+              />
+            ))}
+          </div>
+
+          <div ref={act3TextRef} className="relative z-10 text-center px-6 max-w-3xl">
+            <p className="text-[11px] uppercase tracking-[0.6em] text-white/50 mb-6">Act III · The Crescendo</p>
+            <h2 className="text-4xl sm:text-6xl md:text-7xl font-light tracking-tight">
+              Transform your <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-white to-amber-200">frequency</span>
+            </h2>
+            <p className="mt-6 text-sm sm:text-base text-white/60 max-w-xl mx-auto">
+              Spectral energy erupts. Cymatics multiply. The chamber opens to its highest amplitude.
+            </p>
+          </div>
+
+          <div ref={act3LogoRef} className="absolute bottom-28 left-1/2 -translate-x-1/2 w-[70vw] max-w-xl">
+            <div className="relative w-full aspect-video rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 via-white/2 to-transparent shadow-[0_30px_80px_rgba(0,0,0,0.6)] overflow-hidden">
+              <div className="absolute inset-0 bg-[linear-gradient(120deg,_rgba(56,189,248,0.25),_transparent_40%,_rgba(250,204,21,0.2))]" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="px-6 py-3 rounded-full border border-white/20 text-xs uppercase tracking-[0.4em] text-white/70 bg-black/40">
+                  Hero Reveal
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div ref={act3CtaRef} className="absolute bottom-10 left-1/2 -translate-x-1/2 text-center">
+            <p className="text-[11px] uppercase tracking-[0.5em] text-white/40 mb-4">Enter the chamber</p>
+            <Link
+              href="/"
+              className="group inline-flex items-center gap-3 rounded-full border border-cyan-200/40 bg-white/5 px-10 py-4 text-sm font-medium text-white shadow-[0_0_30px_rgba(34,211,238,0.25)] transition-all hover:border-amber-200/60 hover:bg-gradient-to-r hover:from-cyan-200/20 hover:to-amber-200/20"
+            >
+              Enter the Chamber
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
