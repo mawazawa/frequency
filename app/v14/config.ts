@@ -5,9 +5,9 @@ export const MODES = {
     id: 'genesis',
     label: 'Genesis',
     hz: '432 Hz',
-    color1: [1.0, 0.5, 0.2],
-    color2: [1.0, 0.9, 0.8],
-    bg: [0.02, 0.008, 0.004],
+    color1: [0.83, 0.69, 0.22], // Celestial Gold
+    color2: [1.0, 0.95, 0.8],
+    bg: [0.02, 0.015, 0.005],
     tension: 0.15,
     friction: 0.85,
     n: 3.0,

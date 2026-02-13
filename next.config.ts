@@ -7,6 +7,23 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  async headers() {
+    return [
+      {
+        source: '/invite/:path*',
+        headers: [
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive, nosnippet, noimageindex',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'private, no-store, max-age=0',
+          },
+        ],
+      },
+    ]
+  },
 };
 
 export default nextConfig;

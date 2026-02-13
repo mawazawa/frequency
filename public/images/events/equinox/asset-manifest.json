@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-02-13",
+  "imageSet": "dark-forest-v1",
+  "assets": [
+    {
+      "id": "hero",
+      "file": "hero-equinox.png",
+      "alt": "Forest altar scene at dusk with ceremonial lighting and deep green atmosphere.",
+      "width": 1500,
+      "height": 1942
+    },
+    {
+      "id": "field-session",
+      "file": "field-session.png",
+      "alt": "Facilitated outdoor session in a secluded canyon setting with grounded, intentional posture.",
+      "width": 1500,
+      "height": 1942
+    },
+    {
+      "id": "integration",
+      "file": "integration-circle.png",
+      "alt": "Small integration circle in nature emphasizing attentive listening and focused reflection.",
+      "width": 1500,
+      "height": 1942
+    },
+    {
+      "id": "night",
+      "file": "night-ceremony.png",
+      "alt": "Night ceremony frame with candlelight, fire tones, and dark forest textures.",
+      "width": 1500,
+      "height": 1942
+    }
+  ]
+}

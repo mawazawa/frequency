@@ -454,9 +454,9 @@ export default function V12Page() {
               animate={{ scale: [1, 1.015, 1] }}
               transition={{ delay: 3.5, duration: 4, ease: "easeInOut", repeat: Infinity }}
             >
-              {/* "God is" — small, understated */}
+              {/* "Find Your" — small, understated */}
               <span className="flex items-center justify-center gap-[0.25em] mb-2">
-                {["God", "is"].map((word, wi) => (
+                {["Find", "Your"].map((word, wi) => (
                   <motion.span
                     key={word}
                     initial={{ opacity: 0, y: 10, letterSpacing: '0.4em' }}
